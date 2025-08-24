@@ -51,9 +51,9 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.4638 0.1134 54.23);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.6324 0.1392 66.56);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
@@ -84,10 +84,10 @@
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
+  ---primary: oklch(0.4638 0.1134 54.23);
+  --secondary: oklch(0.6324 0.1392 66.56);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
@@ -110,6 +110,31 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+h2 {
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+  font-weight: 700;
+}
+h1 {
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 700;
+}
+p {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 400;
+}
+h3 {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+}
+h4 {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
 }
 
 @layer base {

@@ -1,22 +1,25 @@
 // src/app/components/user-form.tsx
 "use client";
 
-import { useActionState } from "react";
-import { createUser } from "@/app/actions/user-actions";
-
-const initialState = {
-  name: "",
-  email: "",
-};
+import { prisma } from "@/lib/db";
+import React from "react";
+import { Button } from "../ui/button";
 
 export default function UserForm() {
-  const [state, formAction] = useActionState(createUser, initialState);
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    await createUser({});
-  };
-
+  const handleSubmit = React.useCallback(async ({}) => {
+    try {
+      await prisma.user.create({
+        data: {
+          name: "asoy",
+          email: "asoy2@gmail.com",
+        },
+      });
+    } catch (error) {
+      console.error("Error creating user:", error);
+    }
+  }, []);
   return (
-    <form action={formAction} className="form">
+    <form className="form">
       <div className="form-group">
         <label htmlFor="name">Name</label>
         <input
@@ -39,11 +42,9 @@ export default function UserForm() {
         />
       </div>
 
-      <button type="submit" className="button" onClick={handleSubmit}>
+      <Button type="submit" className="button" onClick={handleSubmit}>
         Add User
-      </button>
-
-      {state.message && <p className="message">{state.message}</p>}
+      </Button>
     </form>
   );
 }
