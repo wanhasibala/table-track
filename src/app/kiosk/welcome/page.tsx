@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Bell, Search, ShoppingCart } from "lucide-react";
+import Head from "next/head";
 import React from "react";
 
 const page = () => {
@@ -59,7 +60,7 @@ const page = () => {
         <div className="mt-2  ">
           <Drawer>
             {Array.from({ length: 10 }).map((_, index) => (
-              <div key={index} className="mb-3">
+              <div key={index.toString()} className="mb-3">
                 <DrawerTrigger
                   className="bg-primary/20 h-10 rounded-md mb-4 w-full"
                   onClick={() =>
