@@ -4,15 +4,18 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -22,8 +25,8 @@ export const metadata: Metadata = {
   },
   description:
     "Table Track is ready for offline use after the app has loaded once.",
-  manifest: "/manifest.webmanifest",
-  themeColor: "#b45309",
+  // manifest: "/manifest.webmanifest",
+  // themeColor: "#B45309",
   appleWebApp: {
     capable: true,
     title: "Table Track",
@@ -42,11 +45,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.className}  antialiased`}>
         <PwaRegister />
         <TooltipProvider>{children}</TooltipProvider>
+        <Toaster position="top-right"/>
       </body>
     </html>
   );
