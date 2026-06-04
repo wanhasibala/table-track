@@ -19,13 +19,15 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {toast} from "sonner";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const supabase = createClient();
 
@@ -44,9 +46,23 @@ export default function LoginPage() {
       toast.error(signinError.message ?? "Login failed");
       return;
     }
+    const { data: account, error: profileError } = await supabase
+      .from("user_account")
+      .select("tenant_id, role")
+      .eq("id", data.user.id)
+      .maybeSingle();
 
+    setLoading(false);
+
+    // Evaluate tenant workspace routing rules
+    if (!account || !account.tenant_id) {
+      toast.success("Account created! Let's set up your business.");
+      router.push("/onboarding");
+    } else {
+      toast.success("Welcome back!");
+      router.push("/d/dashboard");
+    }
     // on successful login, navigate to dashboard or home
-    window.location.href = "/dashboard/overview";
   }
 
   return (
@@ -92,11 +108,10 @@ export default function LoginPage() {
                   />
                 </Field>
                 <Field>
-                  <Button type="submit" >
-                    Login
-                  </Button>
+                  <Button type="submit">Login</Button>
                   <FieldDescription className="text-center text-sm">
-                    Don&apos;t have an account? <a href="/auth/register">Sign up</a>
+                    Don&apos;t have an account?{" "}
+                    <a href="/auth/register">Sign up</a>
                   </FieldDescription>
                 </Field>
               </FieldGroup>

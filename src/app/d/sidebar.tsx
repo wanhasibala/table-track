@@ -49,6 +49,7 @@ const DEFAULT_MENU: MenuItem[] = [
     url: "/d/dashboard",
   },
   { label: "Overview", url: "/d/overview" },
+  { label: "Category", url: "/d/category" },
   { label: "Menu Management", url: "/d/menu-management" },
   { label: "Table Management", url: "/d/table-management" },
   { label: "Reports", url: "/d/reports" },

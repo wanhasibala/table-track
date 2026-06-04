@@ -1,46 +1,44 @@
 "use client";
 import { AdvancedTable } from "@/components/ui/data-table/advanced-table";
-import React, { useEffect, useState } from "react";
-import { column } from "./menu";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { MenuForm } from "./menu-form";
+import { columnCategory } from "./category";
 import { createClient } from "@/utils/supabase/client";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { CategoryForm } from "./category-form";
 
 const page = () => {
-  const columns = column();
+  const columns = columnCategory();
+  const [data, setData] = useState([]);
+  const [filter, setFilter] = useState({
+    search: "",
+  });
   const [dialog, setDialog] = useState({
     open: false,
     id: "",
   });
-  const [filter, setFilter] = useState({
-    search: "",
-  });
   const supabase = createClient();
-  const [data, setData] = useState([]);
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await supabase
-          .from("menu_item")
-          .select("*")
-          .ilike("name", filter.search);
-        console.log(response);
+        const response = await supabase.from("category").select("*");
+        setData(response.data || []);
       } catch (error) {
         console.error("Error fetching data:", error);
+        setData([]);
         toast.error("Failed to fetch data");
       }
     };
     fetchData();
-  }, []);
+  }, [setData]);
   return (
     <>
-      <h3 className="text-xl font-semibold">Menu Management</h3>
+      <h3 className="text-xl font-semibold">Category </h3>
       <AdvancedTable
         columns={columns}
-        data={[]}
+        data={data}
         addButton={{
-          text: "Add New Menu",
+          text: "Add Category",
           onClick: () =>
             setDialog((prev) => ({ ...prev, open: true, id: "new" })),
         }}
@@ -50,7 +48,10 @@ const page = () => {
         onOpenChange={(open) => setDialog((prev) => ({ ...prev, open }))}
       >
         <DialogContent>
-          <MenuForm id={dialog.id} />
+          <DialogTitle>
+            {dialog.id === "new" ? "New Category" : "Edit Cateogyr"}
+          </DialogTitle>
+          <CategoryForm id={dialog.id} />
         </DialogContent>
       </Dialog>
     </>
