@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { DataForm } from "@/components/ui/data-form/data-form";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -31,12 +32,10 @@ export default function LoginPage() {
 
   const supabase = createClient();
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+  async function handleSubmit(data: Record<string, any>) {
+    const { email, password } = data;
 
-    const { data, error: signinError } = await supabase.auth.signInWithPassword(
+    const { data:signinData, error: signinError, } = await supabase.auth.signInWithPassword(
       { email, password },
     );
     setLoading(false);
@@ -49,7 +48,7 @@ export default function LoginPage() {
     const { data: account, error: profileError } = await supabase
       .from("user_account")
       .select("tenant_id, role")
-      .eq("id", data.user.id)
+      .eq("id", signinData.user.id)
       .maybeSingle();
 
     setLoading(false);
@@ -76,7 +75,16 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="w-full">
+            <DataForm
+              fields={[
+                { label: "Email", name: "email", type: "text" },
+                { label: "Password", name: "password", type: "password" },
+              ]}
+              onSubmit={handleSubmit}
+              submitButtonPosition="bottom"
+              submitClassname="w-full"
+            />
+            {/* <form onSubmit={handleSubmit} className="w-full">
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="email">Email</FieldLabel>
@@ -115,7 +123,7 @@ export default function LoginPage() {
                   </FieldDescription>
                 </Field>
               </FieldGroup>
-            </form>
+            </form> */}
           </CardContent>
         </Card>
       </div>
