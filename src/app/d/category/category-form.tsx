@@ -1,22 +1,34 @@
 import { DataForm } from "@/components/ui/data-form/data-form";
+import { useCreateResourceMutation } from "@/store/services/flexible-querry";
 import { createClient } from "@/utils/supabase/client";
 import React from "react";
 import { toast } from "sonner";
 
-export const CategoryForm = ({ id }: { id: string }) => {
+export const CategoryForm = ({
+  id,
+  onSuccess,
+}: {
+  id: string;
+  onSuccess?: () => void;
+}) => {
   const isNew = id === "new";
-  const supabase = createClient();
+  const [create] = useCreateResourceMutation();
   const handleSubmit = async (data: any) => {
     try {
-      await supabase.from("category").insert({
-        ...data,
+      await create({
+        resource: "category",
+        body: {
+          ...data,
+        },
       });
+      onSuccess?.();
       toast.success("Category saved successfully");
     } catch (error) {
       console.error("Error inserting category:", error);
       toast.error("Failed to save category");
     }
   };
+  const handleDelete = async () => {};
 
   return (
     <DataForm
@@ -29,6 +41,8 @@ export const CategoryForm = ({ id }: { id: string }) => {
           type: "checkbox",
         },
       ]}
+      onDelete={handleDelete}
+      deleteLabel="Delete"
       onSubmit={handleSubmit}
       submitButtonPosition="bottom"
     />

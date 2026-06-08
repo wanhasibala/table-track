@@ -5,6 +5,7 @@ import "./globals.css";
 import { PwaRegister } from "@/components/pwa-register";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
+import { Providers } from "@/store/provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,8 +48,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.className}  antialiased`}>
         <PwaRegister />
-        <TooltipProvider>{children}</TooltipProvider>
-        <Toaster position="top-right"/>
+        <Providers>
+          <TooltipProvider>{children}</TooltipProvider>
+        </Providers>
+        <Toaster position="top-right" />
       </body>
     </html>
   );
