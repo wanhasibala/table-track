@@ -8,15 +8,17 @@ type PublicSchema = Database["public"];
 export type TableName = keyof PublicSchema["Tables"];
 
 export type Row<T extends TableName> = PublicSchema["Tables"][T]["Row"];
-export type InsertRow<T extends TableName> = PublicSchema["Tables"][T]["Insert"];
-export type UpdateRow<T extends TableName> = PublicSchema["Tables"][T]["Update"];
+export type InsertRow<T extends TableName> =
+  PublicSchema["Tables"][T]["Insert"];
+export type UpdateRow<T extends TableName> =
+  PublicSchema["Tables"][T]["Update"];
 
-// 🚀 🔥 THE MAGIC TYPE: Maps valid columns for the specific table selected
 type QueryParams<T extends TableName> = {
-  [K in keyof Row<T>]?: Row<T>[K] | Row<T>[K][]; // Allows filtering by column values or an array of values (.in())
+  [K in keyof Row<T>]?: Row<T>[K] | Row<T>[K][];
 } & {
-  sort?: keyof Row<T> & string; // 👈 Enforces sort must be a valid column name string
-  order?: "asc" | "desc";       // 👈 Enforces order must be exactly 'asc' or 'desc'
+  sort?: keyof Row<T> & string;
+  order?: "asc" | "desc";
+  select?: string; // 👈 Add this line
 };
 
 interface ResourceQueryArgs<T extends TableName = TableName> {
@@ -44,20 +46,22 @@ export const api = createApi({
   keepUnusedDataFor: 30,
   tagTypes: ["Resource"],
   endpoints: (builder) => ({
-    
     // READ LIST
     getResource: builder.query<{ data: any[] }, ResourceQueryArgs<any>>({
       async queryFn({ resource, params = {} }) {
         try {
-          let query = supabase.from(resource).select("*");
+          // 1. Check if a custom select string is provided, otherwise fall back to '*'
+          const selectFields = (params.select as string) || "*";
+          let query = supabase.from(resource).select(selectFields);
 
           const sortColumn = params.sort as string | undefined;
           const sortOrder = params.order as "asc" | "desc" | undefined;
 
           Object.entries(params).forEach(([key, value]) => {
             if (value === undefined || value === null) return;
-            if (key === "sort" || key === "order") return; 
-            
+            // 2. Make sure we skip 'select' so it doesn't get treated as an equality filter
+            if (key === "sort" || key === "order" || key === "select") return;
+
             if (Array.isArray(value)) {
               query = query.in(key, value);
             } else {
@@ -66,8 +70,8 @@ export const api = createApi({
           });
 
           if (sortColumn) {
-            query = query.order(sortColumn, { 
-              ascending: sortOrder !== "desc"
+            query = query.order(sortColumn, {
+              ascending: sortOrder !== "desc",
             });
           }
 
@@ -83,7 +87,10 @@ export const api = createApi({
         result?.data
           ? [
               { type: "Resource" as const, id: "LIST" },
-              ...result.data.map(({ id }: any) => ({ type: "Resource" as const, id })),
+              ...result.data.map(({ id }: any) => ({
+                type: "Resource" as const,
+                id,
+              })),
             ]
           : [{ type: "Resource" as const, id: "LIST" }],
     }),
@@ -104,7 +111,9 @@ export const api = createApi({
           return { error: { message: err.message } };
         }
       },
-      providesTags: (result, error, { id }) => [{ type: "Resource" as const, id }],
+      providesTags: (result, error, { id }) => [
+        { type: "Resource" as const, id },
+      ],
     }),
 
     // CREATE RECORD
@@ -130,7 +139,12 @@ export const api = createApi({
     // UPDATE RECORD
     updateResource: builder.mutation<{ data: any }, ResourceMutationArgs<any>>({
       async queryFn({ resource, id, body }) {
-        if (!id) return { error: { message: "An explicit ID argument is required for modifications." } };
+        if (!id)
+          return {
+            error: {
+              message: "An explicit ID argument is required for modifications.",
+            },
+          };
         try {
           const { data, error } = await supabase
             .from(resource)
@@ -153,7 +167,10 @@ export const api = createApi({
     }),
 
     // DELETE RECORD
-    deleteResource: builder.mutation<{ data: any }, { resource: TableName; id: string | number }>({
+    deleteResource: builder.mutation<
+      { data: any },
+      { resource: TableName; id: string | number }
+    >({
       async queryFn({ resource, id }) {
         try {
           const { data, error } = await supabase
@@ -186,3 +203,4 @@ export const {
   useUpdateResourceMutation,
   useDeleteResourceMutation,
 } = api;
+

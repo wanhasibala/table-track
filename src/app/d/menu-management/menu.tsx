@@ -5,7 +5,6 @@ export const column = () => {
   const sampleData = {
     id: "",
     name: "",
-    description: "",
     price: 0,
     category: "",
     available: true,

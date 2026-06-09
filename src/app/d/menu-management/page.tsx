@@ -1,11 +1,10 @@
 "use client";
 import { AdvancedTable } from "@/components/ui/data-table/advanced-table";
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { column } from "./menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { MenuForm } from "./menu-form";
-import { createClient } from "@/utils/supabase/client";
-import { toast } from "sonner";
+import { useGetResourceQuery } from "@/store/services/flexible-querry";
 
 const page = () => {
   const columns = column();
@@ -16,41 +15,47 @@ const page = () => {
   const [filter, setFilter] = useState({
     search: "",
   });
-  const supabase = createClient();
-  const [data, setData] = useState([]);
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await supabase
-          .from("menu_item")
-          .select("*")
-          .ilike("name", filter.search);
-        console.log(response);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        toast.error("Failed to fetch data");
-      }
-    };
-    fetchData();
-  }, []);
+  const { data, isLoading, refetch } = useGetResourceQuery({
+    resource: "menu_item",
+    params: {
+      select: "*, category(name)",
+    },
+  });
+  const menuData = useMemo(() => {
+    return (
+      data?.data.map((item) => ({
+        ...item,
+        category: item.category.name || "",
+        available: item.is_available,
+      })) || []
+    );
+  }, [data]);
+
   return (
     <>
       <h3 className="text-xl font-semibold">Menu Management</h3>
       <AdvancedTable
         columns={columns}
-        data={[]}
+        data={menuData}
         addButton={{
           text: "Add New Menu",
           onClick: () =>
             setDialog((prev) => ({ ...prev, open: true, id: "new" })),
         }}
+        row_click={(id) => setDialog({ id: id || "", open: true })}
       />
       <Dialog
         open={dialog.open}
         onOpenChange={(open) => setDialog((prev) => ({ ...prev, open }))}
       >
         <DialogContent>
-          <MenuForm id={dialog.id} />
+          <MenuForm
+            id={dialog.id}
+            onSuccess={() => {
+              setDialog((prev) => ({ ...prev, open: false, id: "" }));
+              refetch();
+            }}
+          />
         </DialogContent>
       </Dialog>
     </>
