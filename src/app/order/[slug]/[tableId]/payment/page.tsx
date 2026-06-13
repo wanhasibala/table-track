@@ -1,9 +1,20 @@
-interface Props { params: { slug: string; tableId: string } }
-export default function Page({ params }: Props) {
+"use client";
+import { useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+
+export default function PaymentPageRedirect() {
+  const router = useRouter();
+  const params = useParams();
+  
+  useEffect(() => {
+    if (params.slug && params.tableId) {
+      router.replace(`/order/${params.slug}/${params.tableId}`);
+    }
+  }, [router, params]);
+
   return (
-    <main style={{padding:20}}>
-      <h1>Payment (QRIS)</h1>
-      <p>Show QR/Payment flow for the current order.</p>
-    </main>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
   );
 }

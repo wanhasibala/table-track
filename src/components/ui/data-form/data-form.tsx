@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 "use client";
 
 import * as React from "react";
@@ -14,6 +15,7 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import { z } from "zod";
 import {
   Form,
@@ -54,10 +56,15 @@ import {
 import { ScrollArea } from "../scroll-area";
 import { shortDate } from "@/lib/date";
 import { useTranslation } from "@/lib/use-translation";
-import {toast} from "sonner"
-// import { IconSelector } from "../icon-selector";
 import { HTMLProps } from "react";
-// import MonthYearPicker from "../month-year-picker";
+import { type DateRange } from "react-day-picker";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselPrevious,
+  CarouselNext,
+} from "@/components/ui/carousel";
 
 export type FieldType =
   | "text"
@@ -78,7 +85,9 @@ export type FieldType =
   | "dimensions"
   | "button"
   | "separator"
-  | "month";
+  | "month"
+  | "daterange"
+  | "image";
 
 export type FieldWidth =
   | "full"
@@ -92,8 +101,24 @@ export type FieldWidth =
 export type ButtonFieldConfig = BaseFieldConfig & {
   type: "button";
   onClick: (data: any) => void;
-  variant?: "default" | "secondary" | "danger";
-  size?: "sm" | "md" | "lg";
+  variant?:
+    | "default"
+    | "destructive"
+    | "outline"
+    | "secondary"
+    | "ghost"
+    | "link"
+    | null
+    | undefined;
+  size?:
+    | "icon"
+    | "sm"
+    | "lg"
+    | "default"
+    | "icon-sm"
+    | "icon-lg"
+    | null
+    | undefined;
   width?: FieldWidth;
   icon?: LucideIcon | React.ComponentType<any>;
   className?: HTMLProps<HTMLElement>["className"];
@@ -191,6 +216,9 @@ export type FieldConfig =
   | IconFieldConfig
   | DimensionsFieldConfig
   | ButtonFieldConfig
+  | DateRangeFieldConfig
+  | ImageFieldConfig
+  | ImagesFieldConfig
   | (BaseFieldConfig & {
       type: Exclude<
         FieldType,
@@ -203,6 +231,10 @@ export type FieldConfig =
         | "attachment"
         | "icon"
         | "dimensions"
+        | "daterange"
+        | "button"
+        | "image"
+        | "images"
       >;
     });
 
@@ -265,7 +297,7 @@ type SelectFieldConfig = BaseFieldConfig & {
   options: SelectConfig[];
   multiple?: boolean;
   enableTree?: boolean;
-  onChange?: (value: string, form: any) => void;
+  onChange?: (value: any, form: any) => void;
 };
 
 type SelectAsyncFieldConfig = BaseFieldConfig & {
@@ -275,7 +307,7 @@ type SelectAsyncFieldConfig = BaseFieldConfig & {
   enableTree?: boolean;
   debounceMs?: number;
   initialOptions?: SelectConfig[];
-  onChange?: (value: string, form: any) => void;
+  onChange?: (value: any, form: any) => void;
 };
 type IconFieldConfig = BaseFieldConfig & {
   type: "icon";
@@ -289,12 +321,30 @@ type FileFieldConfig = BaseFieldConfig & {
   savedFiles?: string | Array<{ name: string; url: string }>;
 };
 
+type ImageFieldConfig = BaseFieldConfig & {
+  type: "image";
+  accept?: string;
+  savedFiles?: string | Array<{ name: string; url: string }>;
+};
+
+type ImagesFieldConfig = BaseFieldConfig & {
+  type: "images";
+  accept?: string;
+  savedFiles?: string | Array<{ name: string; url: string }> | string[];
+};
+
 type AttachmentFieldConfig = BaseFieldConfig & {
   type: "attachment";
   multiple?: boolean;
   accept?: string;
   savedFiles?: string | Array<{ name: string; url: string }>;
   uploadButtonLabel?: string;
+};
+
+type DateRangeFieldConfig = BaseFieldConfig & {
+  type: "daterange";
+  startDateKey?: string;
+  endDateKey?: string;
 };
 
 export interface CustomButton {
@@ -388,7 +438,6 @@ export function DataForm<TFieldValues extends Record<string, any>>({
   const { hasPermission } = usePermissions();
   const hasRequiredPermission = !permission || hasPermission(permission);
   const formFieldDisabled: boolean = formDisabled === true;
-  const { t } = useTranslation();
 
   const needsConfirmation = (label: string) => {
     // Check if this button label is in the exceptions list
@@ -397,7 +446,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
   const schema = z.object(
     fields.reduce(
       (acc, field) => {
-        let schema: z.ZodType;
+        let schema: any;
 
         if (field.type === "table") {
           schema = field.validation?.required
@@ -413,17 +462,21 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             : z.array(z.string()).default([]);
         } else if (field.type === "select-async" && !field.multiple) {
           schema = field.validation?.required
-            ? z.union([z.string(), z.null()]).refine(
-                (val) => val !== null && val !== "",
-                "This field is required"
-              )
+            ? z
+                .union([z.string(), z.null()])
+                .refine(
+                  (val) => val !== null && val !== "",
+                  "This field is required",
+                )
             : z.union([z.string(), z.null()]).nullable().optional();
         } else if (field.type === "select" && !field.multiple) {
           schema = field.validation?.required
-            ? z.union([z.string(), z.null()]).refine(
-                (val) => val !== null && val !== "",
-                "This field is required"
-              )
+            ? z
+                .union([z.string(), z.null()])
+                .refine(
+                  (val) => val !== null && val !== "",
+                  "This field is required",
+                )
             : z.union([z.string(), z.null()]).nullable().optional();
         } else if (field.type === "dimensions") {
           schema = z
@@ -500,6 +553,27 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                 }, "A file is required")
               : z.any().optional().default(undefined);
           }
+        } else if (field.type === "image") {
+          schema = field.validation?.required
+            ? z.any().refine((val) => {
+                if (val instanceof File) return val.size > 0;
+                if (typeof val === "string") return val.trim().length > 0;
+                return false;
+              }, "An image is required")
+            : z.any().optional().nullable().default(undefined);
+        } else if (field.type === "images") {
+          schema = field.validation?.required
+            ? z
+                .array(z.any())
+                .min(1, "At least one image is required")
+                .refine((val) => {
+                  return Array.isArray(val) && val.length > 0 && val.every((v) => {
+                    if (v instanceof File) return v.size > 0;
+                    if (typeof v === "string") return v.trim().length > 0;
+                    return false;
+                  });
+                }, "All items must be valid images")
+            : z.array(z.any()).optional().default([]);
         } else if (field.type === "radio") {
           schema = field.validation?.required
             ? z.union([
@@ -567,29 +641,28 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             .string()
             .transform((val) => Number(val.replace(/\D/g, "")))
             .pipe(
-              z
-                .number()
-                .optional()
+              (z.number().optional() as any)
                 .refine(
-                  (val) => !field.validation?.required || val !== undefined,
+                  (val: any) =>
+                    !field.validation?.required || val !== undefined,
                   "This field is required",
                 )
                 .refine(
-                  (val) =>
+                  (val: any) =>
                     !field.validation?.min ||
                     val === undefined ||
                     val >= field.validation.min,
                   `Minimum value is ${field.validation?.min}`,
                 )
                 .refine(
-                  (val) =>
+                  (val: any) =>
                     !field.validation?.max ||
                     val === undefined ||
                     val <= field.validation.max,
                   `Maximum value is ${field.validation?.max}`,
                 )
                 .refine(
-                  (val) =>
+                  (val: any) =>
                     !field.validation?.maxLength ||
                     !val ||
                     String(val).length <= field.validation.maxLength,
@@ -618,13 +691,17 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                 return false;
               }
               if (notBefore) {
-                const compareDate = new Date(form.getValues(notBefore));
+                const compareDate = new Date(
+                  form.getValues(notBefore) as string,
+                );
                 if (date < compareDate) {
                   return false;
                 }
               }
               if (notAfter) {
-                const compareDate = new Date(form.getValues(notAfter));
+                const compareDate = new Date(
+                  form.getValues(notAfter) as string,
+                );
                 if (date > compareDate) {
                   return false;
                 }
@@ -632,7 +709,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
               if (compareField) {
                 const compareValue = form.getValues(compareField);
                 if (compareValue) {
-                  const compareDate = new Date(compareValue);
+                  const compareDate = new Date(compareValue as string);
                   if (date < compareDate) {
                     return false;
                   }
@@ -640,32 +717,82 @@ export function DataForm<TFieldValues extends Record<string, any>>({
               }
               return true;
             }, "Date is outside allowed range");
-        } else {
+        } else if (field.type === "daterange") {
+          const startDateKey = (field as any).startDateKey || "start_date";
+          const endDateKey = (field as any).endDateKey || "end_date";
+
           schema = z
-            .string()
-            .optional()
+            .object({
+              [startDateKey]: z
+                .union([z.string(), z.instanceof(Date), z.null()])
+                .optional(),
+              [endDateKey]: z
+                .union([z.string(), z.instanceof(Date), z.null()])
+                .optional(),
+            })
+            .refine((val) => {
+              if (!field.validation?.required) return true;
+              const start = val?.[startDateKey];
+              const end = val?.[endDateKey];
+              return (
+                start !== undefined &&
+                start !== null &&
+                start !== "" &&
+                end !== undefined &&
+                end !== null &&
+                end !== ""
+              );
+            }, "Both start and end dates are required")
+            .refine((val) => {
+              const startVal = val?.[startDateKey];
+              const endVal = val?.[endDateKey];
+              if (!startVal || !endVal) return true;
+              const startDate = new Date(startVal);
+              const endDate = new Date(endVal);
+              return startDate <= endDate;
+            }, "Start date must be before or equal to end date")
+            .refine((val) => {
+              if (!field.validation?.dateRange) return true;
+              const { min, max } = field.validation.dateRange;
+              const startVal = val?.[startDateKey];
+              const endVal = val?.[endDateKey];
+
+              if (min) {
+                const minDate = new Date(min);
+                if (startVal && new Date(startVal) < minDate) return false;
+                if (endVal && new Date(endVal) < minDate) return false;
+              }
+              if (max) {
+                const maxDate = new Date(max);
+                if (startVal && new Date(startVal) > maxDate) return false;
+                if (endVal && new Date(endVal) > maxDate) return false;
+              }
+              return true;
+            }, "Dates must be within the allowed range");
+        } else {
+          schema = (z.string().optional() as any)
             .refine(
-              (val) =>
+              (val: any) =>
                 !field.validation?.required ||
                 (val !== undefined && val !== ""),
               "This field is required",
             )
             .refine(
-              (val) =>
+              (val: any) =>
                 !field.validation?.minLength ||
                 !val ||
                 val.length >= field.validation.minLength,
               `Minimum length is ${field.validation?.minLength}`,
             )
             .refine(
-              (val) =>
+              (val: any) =>
                 !field.validation?.maxLength ||
                 !val ||
                 val.length <= field.validation.maxLength,
               `Maximum length is ${field.validation?.maxLength}`,
             )
             .refine(
-              (val) => {
+              (val: any) => {
                 if (!val) return true;
                 if (field.validation?.pattern) {
                   return new RegExp(field.validation.pattern).test(val);
@@ -691,16 +818,16 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                 }
                 return true;
               },
-              (val) => ({
+              (val: any) => ({
                 message: field.validation?.patternMessage || "Invalid format",
               }),
             )
             .refine(
-              (val) =>
+              (val: any) =>
                 !field.validation?.custom ||
                 !val ||
                 !field.validation.custom(val, form.getValues()),
-              (val) => ({
+              (val: any) => ({
                 message:
                   field.validation?.custom?.(val, form.getValues()) ||
                   "Invalid value",
@@ -717,9 +844,65 @@ export function DataForm<TFieldValues extends Record<string, any>>({
 
   type SchemaType = z.infer<typeof schema>;
 
+  const defaultValues = React.useMemo(() => {
+    const defaults = { ...(initialData || {}) } as any;
+    fields.forEach((field) => {
+      if (field.type === "daterange") {
+        const startDateKey = (field as any).startDateKey || "start_date";
+        const endDateKey = (field as any).endDateKey || "end_date";
+        if (!defaults[field.name]) {
+          defaults[field.name] = {
+            [startDateKey]: null,
+            [endDateKey]: null,
+          };
+        } else {
+          defaults[field.name] = {
+            [startDateKey]:
+              defaults[field.name][startDateKey] !== undefined
+                ? defaults[field.name][startDateKey]
+                : null,
+            [endDateKey]:
+              defaults[field.name][endDateKey] !== undefined
+                ? defaults[field.name][endDateKey]
+                : null,
+          };
+        }
+      } else if (field.type === "images") {
+        if (!defaults[field.name]) {
+          if (field.savedFiles) {
+            if (typeof field.savedFiles === "string") {
+              try {
+                const parsed = JSON.parse(field.savedFiles);
+                defaults[field.name] = Array.isArray(parsed) ? parsed : [field.savedFiles];
+              } catch (e) {
+                defaults[field.name] = [field.savedFiles];
+              }
+            } else if (Array.isArray(field.savedFiles)) {
+              defaults[field.name] = field.savedFiles.map((f: any) => typeof f === "object" && f.url ? f.url : f);
+            } else {
+              defaults[field.name] = [];
+            }
+          } else {
+            defaults[field.name] = [];
+          }
+        } else if (typeof defaults[field.name] === "string") {
+          try {
+            const parsed = JSON.parse(defaults[field.name]);
+            defaults[field.name] = Array.isArray(parsed) ? parsed : [defaults[field.name]];
+          } catch (e) {
+            defaults[field.name] = [defaults[field.name]];
+          }
+        } else if (!Array.isArray(defaults[field.name])) {
+          defaults[field.name] = [defaults[field.name]];
+        }
+      }
+    });
+    return defaults as SchemaType;
+  }, [initialData, fields]);
+
   const form = useForm<SchemaType>({
     resolver: zodResolver(schema),
-    defaultValues: (initialData || {}) as SchemaType,
+    defaultValues,
   });
   // Subscribe to form values so hidden/show logic recalculates on change
   const watchedValues = form.watch();
@@ -760,7 +943,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             disabled={formDisabled}
           >
             <Trash2 className="w-4 h-4 mr-2" />
-            {deleteLabel || t("data_form.button.delete")}
+            {deleteLabel || "Delete"}
           </Button>
         )}
 
@@ -772,7 +955,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             onClick={onCancel}
             disabled={formDisabled}
           >
-            {cancelLabel || t("data_form.button.cancel")}
+            {cancelLabel || "Cancel"}
           </Button>
         )}
 
@@ -835,7 +1018,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             disabled={formDisabled}
             className={cn("", submitClassname)}
           >
-            {submitLabel || t("data_form.button.submit")}
+            {submitLabel || "Submit"}
           </Button>
         )}
       </div>
@@ -859,8 +1042,10 @@ export function DataForm<TFieldValues extends Record<string, any>>({
         return (
           <Combobox
             options={field.options}
-            value={form.getValues(field.name) || (field.multiple ? [] : "")}
-            onChange={(value) => {
+            value={
+              (form.getValues(field.name) as any) || (field.multiple ? [] : "")
+            }
+            onChange={(value: any) => {
               form.setValue(field.name, value, {
                 shouldValidate: true,
                 shouldDirty: true,
@@ -870,18 +1055,50 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                 field.onChange(value, form);
               }
             }}
-            placeholder={field.placeholder || `${t("data_form.placeholder.select")} ${field.label}`}
+            placeholder={field.placeholder || `Select ${field.label}`}
             className="mt-2"
             disabled={isFieldDisabled}
             multiple={field.multiple}
             enableTree={field.enableTree}
           />
         );
-      case "select-async":
+      case "select-async": {
+        const resolvedInitialOptions = (() => {
+          if (field.initialOptions) return field.initialOptions;
+
+          const relationName = field.name.endsWith("_id")
+            ? field.name.slice(0, -3)
+            : field.name;
+
+          const relationObj = (initialData as any)?.[relationName];
+          if (relationObj) {
+            if (Array.isArray(relationObj)) {
+              return relationObj.map((item: any) => ({
+                value: item.id || item.value,
+                label: item.name || item.label || item.title || "",
+              }));
+            } else if (typeof relationObj === "object") {
+              return [
+                {
+                  value: relationObj.id || relationObj.value,
+                  label:
+                    relationObj.name ||
+                    relationObj.label ||
+                    relationObj.title ||
+                    "",
+                },
+              ];
+            }
+          }
+          return [];
+        })();
+
         return (
           <AsyncCombobox
             loadOptions={field.loadOptions}
-            value={form.getValues(field.name) || (field.multiple ? [] : "")}
+            value={
+              (form.getValues(field.name) as any) || (field.multiple ? [] : "")
+            }
             onChange={(value) => {
               form.setValue(field.name, value, {
                 shouldValidate: true,
@@ -892,22 +1109,21 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                 field.onChange(value, form);
               }
             }}
-            placeholder={field.placeholder || `${t("data_form.placeholder.select")} ${field.label}`}
+            placeholder={field.placeholder || `Select ${field.label}`}
             className="w-full mt-2"
             disabled={isFieldDisabled}
             multiple={field.multiple}
             enableTree={field.enableTree}
             debounceMs={field.debounceMs}
-            initialOptions={field.initialOptions}
+            initialOptions={resolvedInitialOptions}
           />
         );
+      }
       case "button":
         return (
           <Button
-            variant={field.variant || ""}
-            size={
-              field.size === "sm" ? "sm" : field.size === "lg" ? "lg" : "md"
-            }
+            variant={field.variant || "default"}
+            size={field.size}
             className={cn(
               field.width
                 ? field.width === "full"
@@ -932,29 +1148,17 @@ export function DataForm<TFieldValues extends Record<string, any>>({
       case "textarea":
         return (
           <Textarea
-            placeholder={field.placeholder || `${t("data_form.placeholder.input")} ${field.label.toLowerCase()}`}
+            placeholder={
+              field.placeholder || `Enter ${field.label.toLowerCase()}`
+            }
             className="w-full mt-2"
             disabled={isFieldDisabled}
             {...form.register(field.name)}
           />
         );
-      // case "month":
-      //   return (
-      //     <MonthYearPicker
-      //       onDateChange={(date) => {
-      //         const value = date?.toISOString() || "";
-      //         form.setValue(field.name, value, {
-      //           shouldValidate: true,
-      //         });
-      //         // Call onChange if provided
-      //         if (field.onChange) {
-      //           field.onChange(value, form);
-      //         }
-      //       }}
-      //     />
-      //   );
       case "date":
         const max_year = new Date().getFullYear() + 5;
+        const dateVal = form.getValues(field.name) as string | undefined;
 
         return (
           <Popover>
@@ -963,15 +1167,17 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                 variant="outline"
                 className={cn(
                   "w-full justify-start text-left font-normal mt-2",
-                  !form.getValues(field.name) && "text-muted-foreground",
+                  !dateVal && "text-muted-foreground",
                 )}
                 disabled={isFieldDisabled}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {form.getValues(field.name) ? (
-                  shortDate(new Date(form.getValues(field.name)))
+                {dateVal ? (
+                  shortDate(new Date(dateVal))
                 ) : (
-                  <span>{field.placeholder || `${t("data_form.placeholder.date")}`}</span>
+                  <span>
+                    {field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                  </span>
                 )}
               </Button>
             </PopoverTrigger>
@@ -979,11 +1185,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
               <Calendar
                 mode="single"
                 timeZone="Asia/Jakarta"
-                selected={
-                  form.getValues(field.name)
-                    ? new Date(form.getValues(field.name))
-                    : undefined
-                }
+                selected={dateVal ? new Date(dateVal) : undefined}
                 startMonth={
                   field.validation?.dateRange?.min
                     ? new Date(field.validation.dateRange.min)
@@ -1004,7 +1206,6 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                     field.onChange(value, form);
                   }
                 }}
-                initialFocus
                 // Disable dates after max/notAfter
                 disabled={(date: Date) => {
                   const maxDateStr =
@@ -1020,9 +1221,104 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             </PopoverContent>
           </Popover>
         );
+      case "daterange": {
+        const daterangeField = field as DateRangeFieldConfig;
+        const startDateKey = daterangeField.startDateKey || "start_date";
+        const endDateKey = daterangeField.endDateKey || "end_date";
+        const currentValue = (form.getValues(field.name) || {}) as any;
+        const fromDate = currentValue[startDateKey]
+          ? new Date(currentValue[startDateKey])
+          : undefined;
+        const toDate = currentValue[endDateKey]
+          ? new Date(currentValue[endDateKey])
+          : undefined;
+        const maxYear = new Date().getFullYear() + 5;
+
+        return (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal mt-2",
+                  !fromDate && !toDate && "text-muted-foreground",
+                )}
+                disabled={isFieldDisabled}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {fromDate ? (
+                  toDate ? (
+                    <>
+                      {shortDate(fromDate)} - {shortDate(toDate)}
+                    </>
+                  ) : (
+                    shortDate(fromDate)
+                  )
+                ) : (
+                  <span>
+                    {daterangeField.placeholder ||
+                      `Enter ${daterangeField.label.toLowerCase()}`}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="range"
+                timeZone="Asia/Jakarta"
+                selected={{
+                  from: fromDate,
+                  to: toDate,
+                }}
+                startMonth={
+                  daterangeField.validation?.dateRange?.min
+                    ? new Date(daterangeField.validation.dateRange.min)
+                    : undefined
+                }
+                endMonth={
+                  daterangeField.validation?.dateRange?.max
+                    ? new Date(daterangeField.validation.dateRange.max)
+                    : new Date(`${maxYear}`)
+                }
+                onSelect={(range) => {
+                  const updatedValue = {
+                    [startDateKey]: range?.from
+                      ? range.from.toISOString()
+                      : null,
+                    [endDateKey]: range?.to ? range.to.toISOString() : null,
+                  };
+                  form.setValue(
+                    daterangeField.name as any,
+                    updatedValue as any,
+                    {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                      shouldTouch: true,
+                    },
+                  );
+                  if (daterangeField.onChange) {
+                    (daterangeField.onChange as any)(updatedValue, form);
+                  }
+                }}
+                // Disable dates after max/notAfter
+                disabled={(date: Date) => {
+                  const maxDateStr =
+                    daterangeField.validation?.dateRange?.notAfter ||
+                    daterangeField.validation?.dateRange?.max;
+                  if (maxDateStr) {
+                    const maxDate = new Date(maxDateStr);
+                    return date > maxDate;
+                  }
+                  return false;
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+        );
+      }
       case "table":
         if (!("columns" in field)) return null;
-        const tableData = form.getValues(field.name) || [];
+        const tableData = (form.getValues(field.name) || []) as any[];
 
         const renderTableCell = (
           col: TableColumnConfig,
@@ -1063,62 +1359,16 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                     className="w-full"
                   />
 
-                  {/* Display saved files if they exist */}
-                  {col.savedFiles &&
-                    (() => {
-                      let parsedFiles: Array<{ name: string; url: string }> =
-                        [];
-                      if (
-                        typeof col.savedFiles === "string" &&
-                        col.savedFiles.charAt(0) === "["
-                      ) {
-                        try {
-                          const parsed = JSON.parse(col.savedFiles);
-                          if (Array.isArray(parsed)) parsedFiles = parsed;
-                        } catch (e) {
-                          parsedFiles = [];
-                        }
-                      } else if (Array.isArray(col.savedFiles)) {
-                        parsedFiles = col.savedFiles;
-                      } else {
-                        parsedFiles = [
-                          {
-                            name: col.value,
-                            url: `https://eam-api.avolut.com${col?.savedFiles}`,
-                          },
-                        ];
-                      }
-                      return parsedFiles.length > 0 ? (
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium"></p>
-                          <ul className="space-y-1">
-                            {parsedFiles.map((file, index) => (
-                              <li key={index} className="flex items-center">
-                                <a
-                                  href={file.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-primary hover:underline text-sm"
-                                >
-                                  {file.name}
-                                </a>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null;
-                    })()}
-
                   {/* Display newly selected files */}
                   {col.multiple ? (
                     <div className="text-sm text-muted-foreground">
-                      {form.getValues(col.value)?.length || 0}{" "}
-                      {t("status.files_selected")}
+                      {((form.getValues(col.value) || []) as any).length || 0}{" "}
+                      {"File (s) selected"}
                     </div>
                   ) : form.getValues(col.value) ? (
                     <div className="text-sm text-muted-foreground">
-                      {form.getValues(col.value)?.name ||
-                        t("status.no_file_selected")}
+                      {(form.getValues(col.value) as any)?.name ||
+                        "No file selected"}
                     </div>
                   ) : null}
                 </div>
@@ -1216,7 +1466,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                       col.onChange(value, rowIndex, updateRowTableAsync);
                     }
                   }}
-                  placeholder={`${t("data_form.placeholder.select")} ${col.label}`}
+                  placeholder={`Select ${col.label}`}
                   className="w-full max-h-[300px]"
                   disabled={isFieldDisabled || col.disabled}
                   debounceMs={col.debounceMs}
@@ -1239,7 +1489,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {row[col.value]
                         ? shortDate(new Date(row[col.value]))
-                        : `${t("data_form.placeholder.search")} ${col.label}`}
+                        : `Select ${col.label}`}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="end">
@@ -1265,10 +1515,8 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                             if (notBefore && row[notBefore]) {
                               const beforeDate = new Date(row[notBefore]);
                               if (date < beforeDate) {
-                                toast({
-                                  title: "Validation Error",
+                                toast.error("ValidationError", {
                                   description: `${col.label} must be after ${notBefore}`,
-                                  variant: "destructive",
                                 });
                                 return;
                               }
@@ -1278,10 +1526,8 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                             if (notAfter && row[notAfter]) {
                               const afterDate = new Date(row[notAfter]);
                               if (date > afterDate) {
-                                toast({
-                                  title: "Validation Error",
+                                toast.error("ValidationError", {
                                   description: `${col.label} must be before ${notAfter}`,
-                                  variant: "destructive",
                                 });
                                 return;
                               }
@@ -1299,7 +1545,6 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                         }
                       }}
                       disabled={isFieldDisabled || col.disabled}
-                      initialFocus
                     />
                   </PopoverContent>
                 </Popover>
@@ -1523,7 +1768,9 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                             });
                           }
                         }}
-                        placeholder={field.placeholder || `${t("data_form.placeholder.search")} ${field.label}`}
+                        placeholder={
+                          field.placeholder || `Select ${field.label}`
+                        }
                         className="w-full"
                         disabled={isFieldDisabled}
                         onClick={(e) => {
@@ -1557,11 +1804,11 @@ export function DataForm<TFieldValues extends Record<string, any>>({
           </div>
         );
       case "dimensions":
-        const dimensionsValue = form.getValues(field.name) || {};
+        const dimensionsValue = (form.getValues(field.name) || {}) as any;
 
         const updateDimension = (dim: "x" | "y" | "z", value: string) => {
           const numValue = value === "" ? undefined : parseFloat(value);
-          const currentDimensions = form.getValues(field.name) || {};
+          const currentDimensions = (form.getValues(field.name) || {}) as any;
 
           const newDimensions = {
             ...currentDimensions,
@@ -1622,31 +1869,14 @@ export function DataForm<TFieldValues extends Record<string, any>>({
               )}
           </div>
         );
-      // case "icon":
-      //   return (
-      //     <IconSelector
-      //       value={form.getValues(field.name)}
-      //       onChange={(value) => {
-      //         form.setValue(field.name, value, {
-      //           shouldValidate: true,
-      //           shouldDirty: true,
-      //           shouldTouch: true,
-      //         });
-      //         if (field.onChange) {
-      //           field.onChange(value, form);
-      //         }
-      //       }}
-      //       placeholder={field.placeholder || `${t("data_form.placeholder.select")} ${field.label}`}
-      //       disabled={isFieldDisabled}
-      //       showPreview={field.showPreview !== false}
-      //     />
-      //   );
+
       case "checkbox":
+        const checkboxVal = (form.getValues(field.name) || {}) as any;
         return (
           <div className="flex items-center space-x-2 mt-2">
             <Checkbox
               checked={
-                Boolean(form.getValues(field.name)?.checked) ||
+                Boolean(checkboxVal.checked) ||
                 Boolean(form.getValues(field.name))
               }
               onCheckedChange={(checked) => {
@@ -1656,8 +1886,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                     field.name,
                     {
                       checked: Boolean(checked),
-                      label:
-                        form.getValues(field.name)?.label || field.label || "",
+                      label: checkboxVal.label || field.label || "",
                     },
                     {
                       shouldValidate: true,
@@ -1674,12 +1903,12 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             {field.customInput ? (
               <Input
                 type="text"
-                value={form.getValues(field.name)?.label || field.label || ""}
+                value={checkboxVal.label || field.label || ""}
                 onChange={(e) => {
                   form.setValue(
                     field.name,
                     {
-                      checked: Boolean(form.getValues(field.name)?.checked),
+                      checked: Boolean(checkboxVal.checked),
                       label: e.target.value,
                     },
                     {
@@ -1687,11 +1916,11 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                     },
                   );
                 }}
-                placeholder={field.placeholder || `${t("data_form.placeholder.input")} ${field.label.toLowerCase()}`}
-                className="w-auto"
-                disabled={
-                  isFieldDisabled || !form.getValues(field.name)?.checked
+                placeholder={
+                  field.placeholder || `Enter ${field.label.toLowerCase()}`
                 }
+                className="w-auto"
+                disabled={isFieldDisabled || !checkboxVal.checked}
               />
             ) : (
               <label
@@ -1702,6 +1931,22 @@ export function DataForm<TFieldValues extends Record<string, any>>({
               </label>
             )}
           </div>
+        );
+      case "image":
+        return (
+          <ImageField
+            field={field}
+            form={form}
+            isFieldDisabled={isFieldDisabled}
+          />
+        );
+      case "images":
+        return (
+          <ImagesField
+            field={field}
+            form={form}
+            isFieldDisabled={isFieldDisabled}
+          />
         );
       case "file":
         return (
@@ -1726,7 +1971,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                   }
                 }
               }}
-              placeholder={field.placeholder || `${t("data_form.placeholder.select")} ${field.label}`}
+              placeholder={field.placeholder || `Select ${field.label}`}
               disabled={isFieldDisabled}
               className="w-full"
             />
@@ -1779,13 +2024,13 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             {/* Display newly selected files */}
             {field.multiple ? (
               <div className="text-sm text-muted-foreground">
-                {form.getValues(field.name)?.length || 0}{" "}
-                {t("status.files_selected")}
+                {((form.getValues(field.name) || []) as any).length || 0}{" "}
+                {"File(s) selected"}
               </div>
             ) : form.getValues(field.name) ? (
               <div className="text-sm text-muted-foreground">
-                {form.getValues(field.name)?.name ||
-                  t("status.no_file_selected")}
+                {(form.getValues(field.name) as any)?.name ||
+                  "No file selected"}
               </div>
             ) : null}
           </div>
@@ -1793,55 +2038,6 @@ export function DataForm<TFieldValues extends Record<string, any>>({
       case "attachment": {
         return (
           <div className="space-y-3 mt-2">
-            {field.savedFiles &&
-              (() => {
-                let parsedFiles: Array<{ name: string; url: string }> = [];
-                if (
-                  typeof field.savedFiles === "string" &&
-                  field.savedFiles.charAt(0) === "["
-                ) {
-                  try {
-                    const parsed = JSON.parse(field.savedFiles);
-                    if (Array.isArray(parsed)) parsedFiles = parsed;
-                  } catch (e) {
-                    parsedFiles = [];
-                  }
-                } else if (Array.isArray(field.savedFiles)) {
-                  parsedFiles = field.savedFiles;
-                } else {
-                  parsedFiles = [
-                    {
-                      name: field.name,
-                      url: `https://eam-api.avolut.com${field.savedFiles}`,
-                    },
-                  ];
-                }
-                return parsedFiles.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">
-                      {t("status.saved_file")}
-                    </p>
-                    <ul className="space-y-2">
-                      {parsedFiles.map((file, index) => (
-                        <li
-                          key={index}
-                          className="flex items-center gap-2 p-2 bg-muted rounded-md"
-                        >
-                          <Paperclip className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          <a
-                            href={file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline text-sm truncate"
-                          >
-                            {file.name}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null;
-              })()}
             <input
               ref={(el) => {
                 if (el) attachmentInputsRef.current[field.name] = el;
@@ -1878,33 +2074,30 @@ export function DataForm<TFieldValues extends Record<string, any>>({
               {field.uploadButtonLabel || "Upload "}
             </Button>
 
-            {/* Display newly selected files */}
             {field.multiple
-              ? form.getValues(field.name)?.length > 0 && (
+              ? ((form.getValues(field.name) || []) as any).length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Selected Files</p>
                     <ul className="space-y-2">
-                      {Array.from(form.getValues(field.name) || []).map(
-                        (file: File, index: number) => (
-                          <li
-                            key={index}
-                            className="flex items-center gap-2 p-2 bg-muted rounded-md"
-                          >
-                            <Paperclip className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="text-sm truncate">
-                              {file.name}
-                            </span>
-                          </li>
-                        ),
-                      )}
+                      {Array.from(
+                        (form.getValues(field.name) || []) as any,
+                      ).map((file: any, index: number) => (
+                        <li
+                          key={index}
+                          className="flex items-center gap-2 p-2 bg-muted rounded-md"
+                        >
+                          <Paperclip className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <span className="text-sm truncate">{file.name}</span>
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 )
-              : form.getValues(field.name) && (
+              : Boolean(form.getValues(field.name)) && (
                   <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
                     <Paperclip className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <span className="text-sm truncate">
-                      {form.getValues(field.name)?.name}
+                      {(form.getValues(field.name) as any)?.name}
                     </span>
                   </div>
                 )}
@@ -1948,7 +2141,9 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                   }
                 }
               }}
-              placeholder={field.placeholder || `${t("data_form.placeholder.input")} ${field.label.toLowerCase()}`}
+              placeholder={
+                field.placeholder || `Input ${field.label.toLowerCase()}`
+              }
               className={cn(
                 "w-full mt-2",
                 field.type === "password" && "pr-10",
@@ -1999,17 +2194,14 @@ export function DataForm<TFieldValues extends Record<string, any>>({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {deleteConfirmationTitle ||
-                t("data_form.confirmation.delete.title")}
+                "Are you sure you want to delete this item?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteConfirmationDescription ||
-                t("data_form.confirmation.delete.description")}
+              {deleteConfirmationDescription || "This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              {t("data_form.confirmation.cancel")}
-            </AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 onDelete?.();
@@ -2017,7 +2209,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-white"
             >
-              {t("data_form.button.delete")}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2026,18 +2218,15 @@ export function DataForm<TFieldValues extends Record<string, any>>({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {submitConfirmationTitle ||
-                t("data_form.confirmation.submit.title")}
+              {submitConfirmationTitle || "Are you sure you want to submit?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {submitConfirmationDescription ||
-                t("data_form.confirmation.submit.description")}
+                "Please confirm that you want to proceed with this action."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              {t("data_form.confirmation.cancel")}
-            </AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 if (pendingSubmitData) {
@@ -2054,7 +2243,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                 }
               }}
             >
-              {submitLabel || t("data_form.button.submit")}
+              {submitLabel || "Submit"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2080,7 +2269,7 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             }
           });
 
-          if (needsConfirmation(submitLabel || t("data_form.button.submit"))) {
+          if (needsConfirmation(submitLabel || "Submit")) {
             setPendingSubmitData(processedData as TFieldValues);
             setShowSubmitDialog(true);
           } else {
@@ -2133,3 +2322,274 @@ export function DataForm<TFieldValues extends Record<string, any>>({
     </Form>
   );
 }
+
+const ImageField = ({
+  field,
+  form,
+  isFieldDisabled,
+}: {
+  field: ImageFieldConfig;
+  form: UseFormReturn<any>;
+  isFieldDisabled: boolean;
+}) => {
+  const value = form.watch(field.name);
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!value) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    if (value instanceof File) {
+      const objectUrl = URL.createObjectURL(value);
+      setPreviewUrl(objectUrl);
+      return () => URL.revokeObjectURL(objectUrl);
+    }
+
+    if (typeof value === "string") {
+      setPreviewUrl(value);
+    }
+  }, [value]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      form.setValue(field.name, files[0], {
+        shouldValidate: true,
+      });
+    }
+  };
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.preventDefault();
+    form.setValue(field.name, null, {
+      shouldValidate: true,
+    });
+  };
+
+  return (
+    <div className="space-y-3 mt-2">
+      <div className="relative group flex items-center justify-center border-2 border-dashed rounded-xl overflow-hidden aspect-video max-w-sm bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer border-muted-foreground/30 hover:border-primary/50">
+        {previewUrl ? (
+          <>
+            <img
+              src={previewUrl}
+              alt={field.label}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-opacity duration-200">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => document.getElementById(`image-input-${field.name}`)?.click()}
+              >
+                Change
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={handleRemove}
+              >
+                Remove
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div
+            className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground"
+            onClick={() => document.getElementById(`image-input-${field.name}`)?.click()}
+          >
+            <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-2">
+              <Plus className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <span className="text-sm font-medium">Click to upload image</span>
+            <span className="text-xs text-muted-foreground mt-1">Supports PNG, JPG, GIF up to 5MB</span>
+          </div>
+        )}
+        <input
+          type="file"
+          id={`image-input-${field.name}`}
+          className="hidden"
+          accept={field.accept || "image/*"}
+          onChange={handleFileChange}
+          disabled={isFieldDisabled}
+        />
+      </div>
+    </div>
+  );
+};
+
+const ImagesField = ({
+  field,
+  form,
+  isFieldDisabled,
+}: {
+  field: ImagesFieldConfig;
+  form: UseFormReturn<any>;
+  isFieldDisabled: boolean;
+}) => {
+  const value = form.watch(field.name);
+  const valuesArray = React.useMemo(() => {
+    if (!value) return [];
+    return Array.isArray(value) ? value : [value];
+  }, [value]);
+
+  const [previewUrls, setPreviewUrls] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    const urls: string[] = [];
+    const cleanups: (() => void)[] = [];
+
+    valuesArray.forEach((val) => {
+      if (val instanceof File) {
+        const objectUrl = URL.createObjectURL(val);
+        urls.push(objectUrl);
+        cleanups.push(() => URL.revokeObjectURL(objectUrl));
+      } else if (typeof val === "string") {
+        urls.push(val);
+      } else if (val && typeof val === "object" && "url" in val) {
+        urls.push((val as any).url);
+      }
+    });
+
+    setPreviewUrls(urls);
+
+    return () => {
+      cleanups.forEach((cleanup) => cleanup());
+    };
+  }, [valuesArray]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newFiles = Array.from(files);
+      form.setValue(field.name, [...valuesArray, ...newFiles], {
+        shouldValidate: true,
+      });
+    }
+  };
+
+  const handleRemove = (index: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const updatedValues = valuesArray.filter((_, i) => i !== index);
+    form.setValue(field.name, updatedValues, {
+      shouldValidate: true,
+    });
+  };
+
+  const triggerUpload = () => {
+    document.getElementById(`images-input-${field.name}`)?.click();
+  };
+
+  return (
+    <div className="space-y-4 mt-2">
+      {/* Main Preview / Carousel */}
+      {previewUrls.length > 0 ? (
+        <div className="relative group w-full border rounded-xl overflow-hidden bg-muted/10 max-w-xl mx-auto">
+          <Carousel className="w-full">
+            <CarouselContent>
+              {previewUrls.map((url, index) => (
+                <CarouselItem key={index} className="relative aspect-[16/9] w-full flex items-center justify-center bg-black/5">
+                  <img
+                    src={url}
+                    alt={`${field.label} preview ${index + 1}`}
+                    className="w-full h-full object-contain max-h-[350px]"
+                  />
+                  {/* Remove Button for current slide */}
+                  <div className="absolute top-3 right-3 z-10">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon-sm"
+                      className="rounded-full shadow-lg opacity-80 hover:opacity-100 transition-opacity"
+                      onClick={(e) => handleRemove(index, e)}
+                      disabled={isFieldDisabled}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            {previewUrls.length > 1 && (
+              <>
+                <CarouselPrevious className="left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black border-none shadow-md" />
+                <CarouselNext className="right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black border-none shadow-md" />
+              </>
+            )}
+          </Carousel>
+        </div>
+      ) : (
+        /* Empty State Dropzone */
+        <div
+          className="flex flex-col items-center justify-center border-2 border-dashed rounded-xl overflow-hidden aspect-video max-w-xl mx-auto bg-muted/20 hover:bg-muted/40 transition-all cursor-pointer border-muted-foreground/30 hover:border-primary/50 p-6 text-center group"
+          onClick={triggerUpload}
+        >
+          <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-200">
+            <Plus className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
+          </div>
+          <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+            Click to upload images
+          </span>
+          <span className="text-xs text-muted-foreground mt-1">
+            Supports PNG, JPG, GIF (Multiple selection allowed)
+          </span>
+        </div>
+      )}
+
+      {/* Grid of Thumbnails and Add Button */}
+      {previewUrls.length > 0 && (
+        <div className="flex flex-wrap gap-2.5 items-center justify-center max-w-xl mx-auto py-2">
+          {previewUrls.map((url, index) => (
+            <div
+              key={index}
+              className="relative group w-16 h-16 rounded-lg overflow-hidden border border-muted-foreground/20 bg-muted/30 aspect-square flex-shrink-0"
+            >
+              <img
+                src={url}
+                alt={`Thumbnail ${index + 1}`}
+                className="w-full h-full object-cover"
+              />
+              {/* Overlay with remove button on hover */}
+              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-150">
+                <button
+                  type="button"
+                  onClick={(e) => handleRemove(index, e)}
+                  disabled={isFieldDisabled}
+                  className="p-1 rounded bg-destructive text-destructive-foreground hover:scale-110 transition-transform"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Add more images button in the grid */}
+          <button
+            type="button"
+            onClick={triggerUpload}
+            disabled={isFieldDisabled}
+            className="w-16 h-16 rounded-lg border border-dashed border-muted-foreground/30 hover:border-primary/50 flex flex-col items-center justify-center bg-muted/10 hover:bg-muted/30 transition-all text-muted-foreground hover:text-primary"
+            title="Add more images"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+
+      <input
+        type="file"
+        id={`images-input-${field.name}`}
+        className="hidden"
+        accept={field.accept || "image/*"}
+        multiple
+        onChange={handleFileChange}
+        disabled={isFieldDisabled}
+      />
+    </div>
+  );
+};

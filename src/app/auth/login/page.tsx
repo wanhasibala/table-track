@@ -47,11 +47,29 @@ export default function LoginPage() {
     }
     const { data: account, error: profileError } = await supabase
       .from("user_account")
-      .select("tenant_id, role")
+      .select("tenant_id, role, name, email")
       .eq("id", signinData.user.id)
       .maybeSingle();
 
     setLoading(false);
+
+    if (signinData?.user) {
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          id: signinData.user.id,
+          email: account?.email || signinData.user.email,
+          name: account?.name || account?.email || signinData.user.email,
+          tenant_id: account?.tenant_id,
+        })
+      );
+      localStorage.setItem(
+        "role",
+        JSON.stringify({
+          name: account?.role || "User",
+        })
+      );
+    }
 
     // Evaluate tenant workspace routing rules
     if (!account || !account.tenant_id) {
@@ -61,7 +79,6 @@ export default function LoginPage() {
       toast.success("Welcome back!");
       router.push("/d/dashboard");
     }
-    // on successful login, navigate to dashboard or home
   }
 
   return (

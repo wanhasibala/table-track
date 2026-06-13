@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useLogoutMutation } from "@/store/services/authApi";
 import {
   Sidebar,
   SidebarContent,
@@ -26,7 +27,6 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/utils/supabase/client";
 
@@ -47,10 +47,12 @@ const DEFAULT_MENU: MenuItem[] = [
   {
     label: "Dashboard",
     url: "/d/dashboard",
+    icon: SquareActivity,
   },
   { label: "Overview", url: "/d/overview" },
   { label: "Category", url: "/d/category" },
   { label: "Menu Management", url: "/d/menu-management" },
+  { label: "Order Management", url: "/d/order-management" },
   { label: "Table Management", url: "/d/table-management" },
   { label: "Reports", url: "/d/reports" },
   { label: "Settings", url: "/d/settings" },
@@ -66,7 +68,6 @@ const SUPER_ADMIN_MENU: MenuItem[] = [
 ];
 
 export function useSidebarItems(): MenuItem[] {
-  // Start with the default menu to match SSR output
   const [items, setItems] = useState<MenuItem[]>(DEFAULT_MENU);
 
   return items;
@@ -74,13 +75,12 @@ export function useSidebarItems(): MenuItem[] {
 
 export default function AppSidebar() {
   const pathname = usePathname();
-  // Use undefined as initial state to avoid SSR/client mismatch
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
 
   const items = useSidebarItems();
+  const [logout] = useLogoutMutation();
   const { theme, setTheme } = useTheme();
 
   // Prevent rendering sidebar content until client has mounted
@@ -89,6 +89,7 @@ export default function AppSidebar() {
   }, []);
 
   const handleLogout = async () => {
+    const supabase = createClient();
     try {
       const response = await supabase.auth.signOut();
       if (response.error) {
@@ -106,13 +107,13 @@ export default function AppSidebar() {
       collapsible="icon"
       className="dark:bg-gray-900 relative max-h-[100vh] "
     >
-      <SidebarTrigger
+      {/* <SidebarTrigger
         onClick={() => setIsCollapsed(!isCollapsed)}
         className={cn(
           "flex items-center absolute top-[50%] -right-4 z-[99] border rounded-full bg-background p-1 transition-transform w-fit ",
           isCollapsed ? "justify-center" : "justify-end",
         )}
-      />
+      /> */}
       <SidebarContent>
         <SidebarGroup className="flex flex-col w-full gap-0 items-center ">
           <SidebarGroupContent>
@@ -165,7 +166,6 @@ function SidebarTreeItem({
   const [openChildren, setOpenChildren] = useState<Set<string>>(new Set());
   const hasChildren = item.child && item.child.length > 0;
 
-  // Close child menus when sidebar is collapsed
   useEffect(() => {
     if (isSidebarCollapsed) {
       setIsOpen(false);
@@ -173,7 +173,6 @@ function SidebarTreeItem({
     }
   }, [isSidebarCollapsed]);
 
-  // Auto-open menu if current path matches a child or grandchild
   useEffect(() => {
     if (hasChildren) {
       const matchedChild = item.child?.find(
@@ -185,15 +184,25 @@ function SidebarTreeItem({
       if (matchedChild) {
         setIsOpen(true);
         if (matchedChild.grandChild?.length) {
-          setOpenChildren(new Set([matchedChild.url]));
+          setOpenChildren(new Set([matchedChild.label]));
         }
       }
     }
   }, [pathname, hasChildren, item.child]);
 
-  const renderIcon = () => {
-    if (!item.icon) return null;
-  };
+  // const renderIcon = () => {
+  //   if (!item.icon) return null;
+
+  //   if (typeof item.icon === "string") {
+  //     const IconComponent = icons[item.icon];
+  //     if (IconComponent) {
+  //       return <IconComponent className="size-5" />;
+  //     }
+  //   } else {
+  //     const IconComponent = item.icon;
+  //     return <IconComponent className="size-5" />;
+  //   }
+  // };
 
   const handleItemClick = (e: React.MouseEvent) => {
     if (hasChildren) {
@@ -203,16 +212,16 @@ function SidebarTreeItem({
     onClick?.();
   };
 
-  const handleChildClick = (childUrl: string, e: React.MouseEvent) => {
-    const child = item.child?.find((c) => c.url === childUrl);
+  const handleChildClick = (childLabel: string, e: React.MouseEvent) => {
+    const child = item.child?.find((c) => c.label === childLabel);
     if (child?.grandChild && child.grandChild.length > 0) {
       e.preventDefault();
       setOpenChildren((prev) => {
         const newSet = new Set(prev);
-        if (newSet.has(childUrl)) {
-          newSet.delete(childUrl);
+        if (newSet.has(childLabel)) {
+          newSet.delete(childLabel);
         } else {
-          newSet.add(childUrl);
+          newSet.add(childLabel);
         }
         return newSet;
       });
@@ -220,9 +229,7 @@ function SidebarTreeItem({
   };
 
   const isActive = (() => {
-    // Check if parent URL matches
     if (pathname.startsWith(item.url) && item.url !== "#") return true;
-    // Check if any child or grandchild matches
     return (
       item.child?.some(
         (child) =>
@@ -234,14 +241,16 @@ function SidebarTreeItem({
     );
   })();
 
-  const parentGroup = ["asset_operation", "maintenance_operation"].includes(
-    item.label,
-  );
+  const parentGroup = [
+    "asset_operation",
+    "maintenance_operation",
+    "reports_operation",
+  ].includes(item.label);
 
   return (
     <SidebarMenuItem
       key={item.url}
-      className={cn(parentGroup && "border-b mt-4")}
+      className={cn(parentGroup && "mt-4 border-b")}
     >
       <div className="flex flex-col">
         <div className="flex items-center">
@@ -249,15 +258,18 @@ function SidebarTreeItem({
             asChild={!hasChildren}
             isActive={isActive}
             onClick={handleItemClick}
+            className={cn(
+              "rounded-sm transition-colors hover:bg-orange-400/10 hover:text-accent-foreground ",
+            )}
           >
             {hasChildren ? (
-              <div className=" flex-1 flex items-center justify-center gap-3 relative w-full text-left">
-                {renderIcon()}
+              <div className="relative flex flex-1 items-center justify-center gap-3 text-left w-full">
+                {/* {renderIcon()} */}
                 {!isSidebarCollapsed && (
                   <>
-                    <span className="text-large flex-1">{`${item.label}`}</span>
+                    <span className="text-large flex-1">{item.label}</span>
                     {item.count && item.count > 0 && (
-                      <div className="w-5 h-5d text-white flex items-center justify-center rounded-full text-xs min-w-5">
+                      <div className="flex h-5 w-5 min-w-5 items-center justify-center rounded-full bg-orange-500 text-xs text-white">
                         {item.count}
                       </div>
                     )}
@@ -274,15 +286,15 @@ function SidebarTreeItem({
             ) : (
               <Link
                 href={item.url}
-                className="flex-1 flex items-center gap-3 relative"
+                className="relative flex flex-1 items-center gap-3"
                 onClick={onClick}
               >
-                {renderIcon()}
+                {/* {renderIcon()} */}
                 {!isSidebarCollapsed && (
                   <>
-                    <span className="text-large flex-1">{`${item.label}`}</span>
+                    <span className="text-large flex-1">{item.label}</span>
                     {item.count && item.count > 0 && (
-                      <div className="w-5 h-5 bg-orange-500 text-white flex items-center justify-center rounded-full text-xs min-w-5">
+                      <div className="flex h-5 w-5 min-w-5 items-center justify-center rounded-full bg-orange-500 text-xs text-white">
                         {item.count}
                       </div>
                     )}
@@ -294,11 +306,11 @@ function SidebarTreeItem({
         </div>
 
         {hasChildren && isOpen && !isSidebarCollapsed && (
-          <div className="pl-8 mt-1 space-y-1">
+          <div className="mt-1 space-y-1 pl-8">
             {item.child?.map((childItem) => {
               const hasGrandChildren =
                 childItem.grandChild && childItem.grandChild.length > 0;
-              const isChildOpen = openChildren.has(childItem.url);
+              const isChildOpen = openChildren.has(childItem.label);
               const isChildActive =
                 pathname.startsWith(childItem.url) && childItem.url !== "#";
 
@@ -307,15 +319,16 @@ function SidebarTreeItem({
                   <SidebarMenuButton
                     asChild={!hasGrandChildren}
                     isActive={isChildActive}
-                    onClick={(e) => handleChildClick(childItem.url, e)}
+                    onClick={(e) => handleChildClick(childItem.label, e)}
+                    className="rounded-sm transition-colors hover:bg-accent hover:text-accent-foreground "
                   >
                     {hasGrandChildren ? (
-                      <div className="flex-1 flex items-center gap-3 relative w-full text-left">
+                      <div className="relative flex flex-1 items-center gap-3 text-left w-full">
                         <span className="text-large flex-1">
-                          {`${item?.label}.${childItem?.label}`}
+                          {childItem.label}
                         </span>
                         {childItem.count && childItem.count > 0 && (
-                          <div className="w-5 h-5 bg-orange-500 text-white flex items-center justify-center rounded-full text-xs min-w-5">
+                          <div className="flex h-5 w-5 min-w-5 items-center justify-center rounded-full bg-orange-500 text-xs text-white">
                             {childItem.count}
                           </div>
                         )}
@@ -333,10 +346,10 @@ function SidebarTreeItem({
                         className="flex items-center gap-3"
                       >
                         <span className="text-large flex-1">
-                          {`${item?.label}.${childItem.label}`}
+                          {childItem.label}
                         </span>
                         {childItem.count && childItem.count > 0 && (
-                          <div className="w-5 h-5 bg-orange-500 text-white flex items-center justify-center rounded-full text-xs min-w-5">
+                          <div className="flex h-5 w-5 min-w-5 items-center justify-center rounded-full bg-orange-500 text-xs text-white">
                             {childItem.count}
                           </div>
                         )}
@@ -345,7 +358,7 @@ function SidebarTreeItem({
                   </SidebarMenuButton>
 
                   {hasGrandChildren && isChildOpen && (
-                    <div className="pl-8 mt-1 space-y-1">
+                    <div className="mt-1 space-y-1 pl-8">
                       {childItem.grandChild?.map((grandChildItem) => (
                         <SidebarMenuButton
                           key={`${grandChildItem.url}_${grandChildItem.label}`}
@@ -354,18 +367,18 @@ function SidebarTreeItem({
                             pathname.startsWith(grandChildItem.url) &&
                             grandChildItem.url !== "#"
                           }
-                          className="data-[active=true]:border-l-4 data-[active=true]:border-l-primary rounded-sm data-[active=true]:text-primary  hover:bg-accent hover:text-accent-foreground transition-colors"
+                          className="rounded-sm transition-colors hover:bg-accent hover:text-accent-foreground "
                         >
                           <Link
                             href={grandChildItem.url}
                             className="flex items-center gap-3"
                           >
                             <span className="text-large flex-1">
-                              {`${item?.label}.${childItem.label}.${grandChildItem.label}`}
+                              {grandChildItem.label}
                             </span>
                             {grandChildItem.count &&
                               grandChildItem.count > 0 && (
-                                <div className="w-5 h-5  flex items-center justify-center rounded-full text-xs min-w-5">
+                                <div className="flex h-5 w-5 min-w-5 items-center justify-center rounded-full bg-orange-500 text-xs text-white">
                                   {grandChildItem.count}
                                 </div>
                               )}

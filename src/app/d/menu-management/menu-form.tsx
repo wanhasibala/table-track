@@ -1,10 +1,11 @@
 import { DataForm } from "@/components/ui/data-form/data-form";
+import { useFileUpload } from "@/hooks/use-file-upload";
 import {
   useLazyGetResourceQuery,
   useCreateResourceMutation,
   useGetResourceByIdQuery,
+  useUpdateResourceMutation,
 } from "@/store/services/flexible-querry";
-import { createClient } from "@/utils/supabase/client";
 import React from "react";
 import { toast } from "sonner";
 
@@ -30,14 +31,49 @@ export const MenuForm = ({
   );
   const [fetchCategory] = useLazyGetResourceQuery();
   const [create] = useCreateResourceMutation();
+  const [update] = useUpdateResourceMutation();
+  const { uploadFile } = useFileUpload();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSubmit = async (data: any) => {
     try {
-      const response = await create({
-        resource: "menu_item",
-        body: data,
-      }).unwrap();
+      if (Array.isArray(data.image_url)) {
+        const uploadedUrls = await Promise.all(
+          data.image_url.map(async (img: unknown) => {
+            if (img instanceof File) {
+              const response = await uploadFile(img, {
+                bucket: "assets",
+                folder: "menu-images",
+              });
+              return response;
+            }
+            return img;
+          })
+        );
+        data.image_url = uploadedUrls;
+      } else if (data.image_url instanceof File) {
+        const response = await uploadFile(data.image_url, {
+          bucket: "assets",
+          folder: "menu-images",
+        });
+        data.image_url = [response];
+      }
+
+      if (isNew) {
+        await create({
+          resource: "menu_item",
+          body: data,
+        }).unwrap();
+      } else {
+        await update({
+          resource: "menu_item",
+          id,
+          body: data,
+        }).unwrap();
+      }
+
       toast.success("Menu item submitted successfully!");
-      onSuccess && onSuccess();
+      if (onSuccess) onSuccess();
     } catch (error) {
       console.error("Error submitting menu item:", error);
       toast.error("Failed to submit menu item. Please try again.");
@@ -49,12 +85,13 @@ export const MenuForm = ({
   return (
     <DataForm
       fields={[
+        { label: "Image", name: "image_url", type: "images" },
         { label: "Name", name: "name", type: "text" },
         {
           label: "Category",
           name: "category_id",
           type: "select-async",
-          loadOptions: async (searchTerm) => {
+          loadOptions: async (_searchTerm) => {
             try {
               const response = await fetchCategory({
                 resource: "category",
@@ -70,7 +107,6 @@ export const MenuForm = ({
           },
         },
         { label: "Price", name: "price", type: "number" },
-        { label: "Image", name: "image_url", type: "file" },
         { label: "Stock", name: "stock", type: "number" },
       ]}
       onSubmit={handleSubmit}

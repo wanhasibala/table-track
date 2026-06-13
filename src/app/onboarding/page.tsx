@@ -31,7 +31,6 @@ const OnboardingPage = () => {
   ];
 
   const handleSubmit = async (data: Record<string, any>) => {
-    console.log("Onboarding business with data:", data);
 
     if (!data.name?.trim()) {
       toast.error("Business name is required.");

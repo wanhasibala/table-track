@@ -29,8 +29,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useTranslation } from "@/lib/use-translation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 // import { useLazyGetResourceQuery } from "@/store/services/flexible-querry";
 import { useRouter } from "next/navigation";
@@ -60,8 +58,7 @@ const Header = () => {
   const [role, setRole] = useState<Role>({});
   const [mounted, setMounted] = useState(false);
   const [currentLocale, setCurrentLocale] = useState("en"); // Default value
-  const { t } = useTranslation();
-//   const [fetchData] = useLazyGetResourceQuery();
+  //   const [fetchData] = useLazyGetResourceQuery();
   // Notification states
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -71,18 +68,7 @@ const Header = () => {
   );
   const router = useRouter();
 
-  const days = [
-    t("header.sunday"), // Fixed: Sunday should be index 0
-    t("header.monday"),
-    t("header.tuesday"),
-    t("header.wednesday"),
-    t("header.thursday"),
-    t("header.friday"),
-    t("header.saturday"),
-  ];
-
   const date = new Date();
-  const today = days[date.getDay()]; // Fixed: getDay() returns 0-6
   const today_date = formatDay(date, "DD-MM-YYYY");
 
   // Initialize after component mounts
@@ -135,29 +121,29 @@ const Header = () => {
   };
 
   // Fetch notifications when popover opens
-//   const fetchNotifications = async () => {
-//     setNotificationLoading(true);
-//     setNotificationError(null);
-//     try {
-//     //   const res = await fetchData({
-//     //     resource: "/notifications",
-//     //     params: {},
-//     //   }).unwrap();
+  //   const fetchNotifications = async () => {
+  //     setNotificationLoading(true);
+  //     setNotificationError(null);
+  //     try {
+  //     //   const res = await fetchData({
+  //     //     resource: "/notifications",
+  //     //     params: {},
+  //     //   }).unwrap();
 
-//     } catch (error) {
-//       setNotificationError(
-//         (error as Error).message || "Failed to load notifications",
-//       );
-//       setNotifications([]);
-//     } finally {
-//       setNotificationLoading(false);
-//     }
-//   };
+  //     } catch (error) {
+  //       setNotificationError(
+  //         (error as Error).message || "Failed to load notifications",
+  //       );
+  //       setNotifications([]);
+  //     } finally {
+  //       setNotificationLoading(false);
+  //     }
+  //   };
 
   const handleNotificationOpenChange = (open: boolean) => {
     setNotificationOpen(open);
     if (open) {
-    //   fetchNotifications();
+      //   fetchNotifications();
     }
   };
 
@@ -190,7 +176,6 @@ const Header = () => {
           <SidebarTrigger />
         </div> */}
         <div>
-          <p className="font-bold text-primary">{today}</p>
           <p className="text-sm">{today_date}</p>
         </div>
       </div>
@@ -270,7 +255,7 @@ const Header = () => {
           >
             <div className="px-2 py-1.5 mb-2">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
-                {t("header.account_actions")}
+                Account Actions
               </p>
             </div>
 
@@ -284,14 +269,14 @@ const Header = () => {
                 className="justify-start font-normal hover:bg-primary/10 hover:text-primary h-9"
               >
                 <LockKeyhole />
-                {t("header.change_password")}
+                Change Password
               </Button>
               <Button
                 variant="ghost"
                 className="justify-start font-normal hover:bg-primary/10 hover:text-primary h-9"
               >
                 <UserCircle className="mr-2 h-4 w-4" />
-                {t("header.change_role")}
+                Change Role
               </Button>
 
               <Button
@@ -300,7 +285,7 @@ const Header = () => {
                 className="justify-start font-normal text-destructive hover:bg-destructive/10 hover:text-destructive h-9"
               >
                 <RefreshCcw className="mr-2 h-4 w-4" />
-                {t("header.clear_cache")}
+                Clear Cache
               </Button>
             </div>
           </PopoverContent>

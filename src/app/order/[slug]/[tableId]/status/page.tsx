@@ -1,10 +1,284 @@
-interface Props { params: { slug: string; tableId: string } }
-export default function Page({ params }: Props) {
-  const { slug, tableId } = params;
+/* eslint-disable @typescript-eslint/no-explicit-any */
+"use client";
+import React, { useEffect, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
+import { useSearchParams, useRouter, useParams } from "next/navigation";
+import { toast } from "sonner";
+import { 
+  CheckCircle2, 
+  Clock, 
+  Utensils, 
+  Flame, 
+  AlertTriangle,
+  ArrowLeft,
+  Sparkles,
+  ShoppingBag
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(amount);
+};
+
+const statusSteps = [
+  { key: "pending", label: "Order Placed", desc: "Waiting for confirmation", icon: Clock },
+  { key: "confirmed", label: "Confirmed", desc: "Accepted by cashier", icon: CheckCircle2 },
+  { key: "preparing", label: "Preparing", desc: "Kitchen is preparing your fruits", icon: Flame },
+  { key: "served", label: "Served", desc: "Fruits served at your table", icon: Utensils },
+  { key: "completed", label: "Completed", desc: "Order complete & paid", icon: Sparkles },
+];
+
+export default function OrderStatusPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const params = useParams();
+  
+  const slug = params.slug as string;
+  const tableId = params.tableId as string;
+  const orderId = searchParams.get("order_id");
+
+  const [order, setOrder] = useState<any>(null);
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!orderId) {
+      setLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
+
+    // 1. Fetch Order and Items
+    const loadOrderData = async () => {
+      try {
+        const { data: orderData, error: orderError } = await supabase
+          .from("order_table")
+          .select("*, table_spot(name)")
+          .eq("id", orderId)
+          .single();
+        if (orderError) throw orderError;
+        setOrder(orderData);
+
+        const { data: itemsData } = await supabase
+          .from("order_item")
+          .select("*, menu_item(name, image_url), menu_variant_option(label)")
+          .eq("order_id", orderId);
+        setOrderItems(itemsData || []);
+      } catch (e: any) {
+        console.error("Error loading order:", e);
+        toast.error("Failed to load order information.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOrderData();
+
+    // 2. Real-time Subscription to Order updates
+    const channel = supabase
+      .channel(`order-status-${orderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "order_table",
+          filter: `id=eq.${orderId}`,
+        },
+        (payload) => {
+          setOrder((prev: any) => ({
+            ...prev,
+            ...payload.new,
+          }));
+          toast.success(`Order status updated: ${payload.new.status.toUpperCase()}`);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+        <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-muted-foreground text-sm font-medium">Retrieving order details...</p>
+      </div>
+    );
+  }
+
+  if (!orderId || !order) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 text-center">
+        <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
+        <h2 className="text-xl font-bold text-foreground">Order Not Found</h2>
+        <p className="text-muted-foreground text-sm mt-1 max-w-xs">
+          We couldn&apos;t locate this order. Please verify the URL or try ordering again.
+        </p>
+        <button
+          onClick={() => router.push(`/order/${slug}/${tableId}`)}
+          className="mt-6 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
+        >
+          Go to Menu
+        </button>
+      </div>
+    );
+  }
+
+  const currentStatusIndex = statusSteps.findIndex(s => s.key === order.status);
+  const isCancelled = order.status === "cancelled";
+
   return (
-    <main style={{padding:20}}>
-      <h1>Order Status</h1>
-      <p>Order status for table <strong>{tableId}</strong> at <strong>{slug}</strong>.</p>
-    </main>
+    <div className="min-h-screen bg-muted/20 pb-16 text-foreground">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50">
+        <div className="max-w-xl mx-auto px-4 py-4 flex items-center justify-between">
+          <button
+            onClick={() => router.push(`/order/${slug}/${tableId}`)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Menu
+          </button>
+          <span className="text-xs font-bold text-muted-foreground font-mono">
+            #{order.id.slice(0, 8).toUpperCase()}
+          </span>
+        </div>
+      </header>
+
+      {/* Main content wrapper */}
+      <main className="max-w-xl mx-auto px-4 py-6 space-y-6">
+        {/* Status Card */}
+        <div className="bg-card rounded-2xl border border-border/80 shadow-md p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-accent" />
+          
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-lg font-extrabold text-foreground">
+                {isCancelled ? "Order Cancelled" : "Track Your Fruits"}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {order.table_spot?.name ? `Table Spot: ${order.table_spot.name}` : "Online Order"}
+              </p>
+            </div>
+            
+            <span className={cn(
+              "text-xs px-3 py-1 rounded-full font-bold border capitalize shadow-sm",
+              isCancelled 
+                ? "bg-destructive/10 text-destructive border-destructive/20" 
+                : order.status === "completed"
+                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                  : "bg-primary/10 text-primary border-primary/20 animate-pulse"
+            )}>
+              {order.status}
+            </span>
+          </div>
+
+          {/* Cancelled Banner */}
+          {isCancelled ? (
+            <div className="mt-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
+              <div className="text-xs text-destructive font-medium leading-relaxed">
+                This order was cancelled by the store manager. Please speak to our staff if you believe this was an error.
+              </div>
+            </div>
+          ) : (
+            /* Vertical Stepper */
+            <div className="mt-8 space-y-6 relative before:absolute before:left-5 before:top-2 before:bottom-2 before:w-0.5 before:bg-muted-foreground/15">
+              {statusSteps.map((step, idx) => {
+                const isCompleted = idx < currentStatusIndex;
+                const isCurrent = idx === currentStatusIndex;
+                const isUpcoming = idx > currentStatusIndex;
+                const StepIcon = step.icon;
+
+                return (
+                  <div key={step.key} className="flex gap-4 relative">
+                    {/* Step Bullet */}
+                    <div className={cn(
+                      "h-10 w-10 rounded-full flex items-center justify-center border-2 transition-all duration-300 z-10",
+                      isCompleted && "bg-primary border-primary text-primary-foreground",
+                      isCurrent && "bg-card border-primary text-primary shadow-md ring-4 ring-primary/15",
+                      isUpcoming && "bg-muted border-muted-foreground/30 text-muted-foreground/60"
+                    )}>
+                      <StepIcon className="h-4.5 w-4.5" />
+                    </div>
+
+                    {/* Step Details */}
+                    <div className="flex-1 pt-1.5">
+                      <h4 className={cn(
+                        "text-sm font-bold",
+                        isUpcoming ? "text-muted-foreground" : "text-foreground"
+                      )}>
+                        {step.label}
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">{step.desc}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Bill Summary */}
+        <div className="bg-card rounded-2xl border border-border/80 shadow-md p-6">
+          <h3 className="font-extrabold text-foreground text-sm flex items-center gap-2 mb-4">
+            <ShoppingBag className="h-4.5 w-4.5 text-primary" />
+            Items Summary
+          </h3>
+
+          <div className="divide-y divide-border/50">
+            {orderItems.map((item) => (
+              <div key={item.id} className="py-3 flex justify-between items-center text-sm">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-foreground">{item.menu_item?.name}</span>
+                    <span className="text-muted-foreground text-xs font-mono font-bold">
+                      ×{item.qty}
+                    </span>
+                  </div>
+                  {item.menu_variant_option?.label && (
+                    <span className="text-[10px] font-semibold text-primary block mt-0.5">
+                      {item.menu_variant_option.label}
+                    </span>
+                  )}
+                  {item.notes && (
+                    <p className="text-[11px] text-muted-foreground italic mt-0.5">
+                      Note: {item.notes}
+                    </p>
+                  )}
+                </div>
+                <span className="font-mono text-foreground font-semibold">
+                  {formatCurrency(item.unit_price * item.qty)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t border-border/80 pt-4 mt-2 flex justify-between items-center">
+            <span className="text-sm font-semibold text-muted-foreground">Amount Paid</span>
+            <span className="text-lg font-extrabold text-primary font-mono">
+              {formatCurrency(order.total_amount)}
+            </span>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <button
+          onClick={() => router.push(`/order/${slug}/${tableId}`)}
+          className="w-full py-3.5 rounded-xl border border-dashed border-primary/40 text-primary font-bold hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 shadow-sm text-sm"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Order More Fruits
+        </button>
+      </main>
+    </div>
   );
 }

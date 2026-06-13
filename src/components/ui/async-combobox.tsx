@@ -277,7 +277,7 @@ export function AsyncCombobox({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild className="w-full h-fit">
+      <PopoverTrigger asChild className="w-full h-fit py-2">
         <Button
           variant="outline"
           role="combobox"

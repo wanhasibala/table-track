@@ -69,7 +69,7 @@ export type Database = {
           is_active?: boolean
           name: string
           sort_order?: number
-          tenant_id: string
+          tenant_id?: string
         }
         Update: {
           id?: string
@@ -92,7 +92,7 @@ export type Database = {
         Row: {
           category_id: string | null
           id: string
-          image_url: string | null
+          image_url: string[] | null
           is_available: boolean
           name: string
           price: number
@@ -102,17 +102,17 @@ export type Database = {
         Insert: {
           category_id?: string | null
           id?: string
-          image_url?: string | null
+          image_url?: string[] | null
           is_available?: boolean
           name: string
           price?: number
           stock?: number
-          tenant_id: string
+          tenant_id?: string
         }
         Update: {
           category_id?: string | null
           id?: string
-          image_url?: string | null
+          image_url?: string[] | null
           is_available?: boolean
           name?: string
           price?: number
@@ -149,7 +149,7 @@ export type Database = {
           is_required?: boolean
           menu_item_id: string
           name: string
-          tenant_id: string
+          tenant_id?: string
         }
         Update: {
           id?: string
@@ -187,7 +187,7 @@ export type Database = {
           id?: string
           label: string
           price_add?: number
-          tenant_id: string
+          tenant_id?: string
           variant_id: string
         }
         Update: {
@@ -232,7 +232,7 @@ export type Database = {
           option_id?: string | null
           order_id: string
           qty?: number
-          tenant_id: string
+          tenant_id?: string
           unit_price?: number
         }
         Update: {
@@ -279,6 +279,8 @@ export type Database = {
       order_table: {
         Row: {
           created_at: string
+          customer_name: string | null
+          customer_phone: string | null
           handled_by: string | null
           id: string
           notes: string | null
@@ -286,19 +288,12 @@ export type Database = {
           table_id: string | null
           tenant_id: string
           total_amount: number
+          type: Database["public"]["Enums"]["order_type"]
         }
         Insert: {
           created_at?: string
-          handled_by?: string | null
-          id?: string
-          notes?: string | null
-          status?: Database["public"]["Enums"]["order_status"]
-          table_id?: string | null
-          tenant_id: string
-          total_amount?: number
-        }
-        Update: {
-          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
           handled_by?: string | null
           id?: string
           notes?: string | null
@@ -306,6 +301,20 @@ export type Database = {
           table_id?: string | null
           tenant_id?: string
           total_amount?: number
+          type?: Database["public"]["Enums"]["order_type"]
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
+          handled_by?: string | null
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          table_id?: string | null
+          tenant_id?: string
+          total_amount?: number
+          type?: Database["public"]["Enums"]["order_type"]
         }
         Relationships: [
           {
@@ -350,7 +359,7 @@ export type Database = {
           order_id: string
           paid_at?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
-          tenant_id: string
+          tenant_id?: string
         }
         Update: {
           amount?: number
@@ -394,7 +403,7 @@ export type Database = {
           is_active?: boolean
           name: string
           qr_code_url?: string | null
-          tenant_id: string
+          tenant_id?: string
         }
         Update: {
           created_at?: string
@@ -489,9 +498,15 @@ export type Database = {
       fn_is_superadmin: { Args: never; Returns: boolean }
       fn_my_role: { Args: never; Returns: string }
       fn_my_tenant_id: { Args: never; Returns: string }
+      get_session_tenant_id: { Args: never; Returns: string }
       get_user_tenant_id: { Args: never; Returns: string }
       initialize_new_organization: {
-        Args: { p_org_name: string; p_slug: string; p_user_name: string }
+        Args: {
+          p_address: string
+          p_logo_url: string
+          p_org_name: string
+          p_user_id: string
+        }
         Returns: string
       }
       is_superadmin: { Args: never; Returns: boolean }
@@ -504,7 +519,8 @@ export type Database = {
         | "served"
         | "cancelled"
         | "completed"
-      payment_method: "card" | "cash" | "online" | "other"
+      order_type: "dine_in" | "takeaway" | "delivery"
+      payment_method: "card" | "cash" | "online" | "other" | "qris"
       payment_status: "pending" | "paid" | "failed" | "refunded"
       user_role: "superadmin" | "admin" | "manager" | "staff" | "customer"
     }
@@ -642,7 +658,8 @@ export const Constants = {
         "cancelled",
         "completed",
       ],
-      payment_method: ["card", "cash", "online", "other"],
+      order_type: ["dine_in", "takeaway", "delivery"],
+      payment_method: ["card", "cash", "online", "other", "qris"],
       payment_status: ["pending", "paid", "failed", "refunded"],
       user_role: ["superadmin", "admin", "manager", "staff", "customer"],
     },

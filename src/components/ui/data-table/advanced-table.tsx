@@ -23,6 +23,8 @@ import {
   Settings,
   Filter,
   Download,
+  LayoutGrid,
+  Table as TableIcon,
 } from "lucide-react";
 import { DataTable } from "./data-table";
 import { DataTablePagination } from "./pagination";
@@ -126,6 +128,9 @@ interface AdvancedTableProps<TData extends { id: string }> {
   };
   renderExpandedContent?: (data: TData) => React.ReactNode;
   onExpandRow?: (rowId: string, rowData: TData) => void | Promise<void>;
+  view?: "table" | "list";
+  onViewChange?: (view: "table" | "list") => void;
+  listRender?: (data: TData) => React.ReactNode;
 }
 
 // Helper component to render icons properly
@@ -189,6 +194,9 @@ export function AdvancedTable<
   nestedTable,
   renderExpandedContent,
   onExpandRow,
+  view: viewProp,
+  onViewChange,
+  listRender,
 }: AdvancedTableProps<TData>) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
@@ -202,6 +210,12 @@ export function AdvancedTable<
   const [expandedDetailRows, setExpandedDetailRows] = React.useState<
     Set<string>
   >(new Set());
+  const [internalView, setInternalView] = React.useState<"table" | "list">("table");
+  const view = viewProp ?? internalView;
+  const setView = React.useCallback((newView: "table" | "list") => {
+    setInternalView(newView);
+    onViewChange?.(newView);
+  }, [onViewChange]);
   // Handle page change through filters
   const handlePageChange = React.useCallback(
     (page: number) => {
@@ -401,7 +415,8 @@ export function AdvancedTable<
         customLabel ||
         sortButtons ||
         processButton ||
-        syncButton) && (
+        syncButton ||
+        true) && (
         <div className="flex items-center justify-between gap-2 bg-background/50 px-2 rounded-md py-2 flex-shrink-0">
           {/* Filters Section */}
           <div className="flex items-center gap-2 flex-1">
@@ -427,6 +442,28 @@ export function AdvancedTable<
 
           {/* Buttons Section */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* View Switcher */}
+            <div className="flex items-center border rounded-md p-0.5 bg-muted/20">
+              <Button
+                variant={view === "table" ? "secondary" : "ghost"}
+                size="sm"
+                className={cn("h-7 px-2.5", view === "table" && "bg-background shadow-sm")}
+                onClick={() => setView("table")}
+              >
+                <TableIcon className="h-4 w-4 mr-1.5" />
+                <span className="text-xs">Table</span>
+              </Button>
+              <Button
+                variant={view === "list" ? "secondary" : "ghost"}
+                size="sm"
+                className={cn("h-7 px-2.5", view === "list" && "bg-background shadow-sm")}
+                onClick={() => setView("list")}
+              >
+                <LayoutGrid className="h-4 w-4 mr-1.5" />
+                <span className="text-xs">List</span>
+              </Button>
+            </div>
+
             {customLabel && (
               <span className="text-sm font-medium text-muted-foreground mr-2">
                 {customLabel}
@@ -497,6 +534,8 @@ export function AdvancedTable<
           }
           onExpandRow={onExpandRow}
           onHeaderClick={handleHeaderClick}
+          view={view}
+          listRender={listRender}
         />
 
         {pagination && onFiltersChange && (

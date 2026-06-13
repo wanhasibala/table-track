@@ -48,6 +48,8 @@ interface DataTableProps<
   expandable?: ExpandableFeatures<TData>;
   onExpandRow?: (rowId: string, rowData: TData) => void | Promise<void>;
   onHeaderClick?: (columnId: string) => void;
+  view?: "table" | "list";
+  listRender?: (data: TData) => React.ReactNode;
 }
 
 declare module "@tanstack/table-core" {
@@ -79,6 +81,8 @@ export function DataTable<
   expandable,
   onExpandRow,
   onHeaderClick,
+  view = "table",
+  listRender,
 }: DataTableProps<TData, TValue>) {
   // For tree feature, we'll render children dynamically, not as separate rows
   const getAllVisibleRows = React.useMemo(() => {
@@ -204,178 +208,355 @@ export function DataTable<
 
   return (
     <div className="border-y w-full flex-1 overflow-hidden flex flex-col relative">
-      {/* Fixed Header */}
-      <TableUI className="w-full flex-shrink-0 relative">
-        <TableHeader className=" sticky top-0 bg-background">
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header, index) => {
-                const isFirst = index === 0;
-                const isLast = index === headerGroup.headers.length - 1;
-                const sortDirection = table
-                  .getState()
-                  .sorting.find((s) => s.id === header.id)?.desc;
-                const isSorted = table
-                  .getState()
-                  .sorting.some((s) => s.id === header.id);
-
-                return (
-                  <TableHead
-                    key={header.id}
-                    colSpan={header.colSpan}
-                    className={cn(
-                      "capitalize font-medium whitespace-normal text-ellipsis z-[99]",
-                      isFirst && "rounded-tl-md",
-                      isLast && "rounded-tr-md",
-                      onHeaderClick && "cursor-pointer hover:bg-muted/50",
+      {view === "list" ? (
+        <ScrollArea className="flex-1 w-full bg-background/50">
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {features?.tree ? (
+              getAllVisibleRows.length ? (
+                getAllVisibleRows.map((rowData) => (
+                  <div key={rowData.id}>
+                    {listRender ? (
+                      <div
+                        onClick={row_click ? () => row_click(rowData) : undefined}
+                        className={cn(row_click && "cursor-pointer")}
+                      >
+                        {listRender(rowData)}
+                      </div>
+                    ) : (
+                      <DefaultCard
+                        rowData={rowData}
+                        columns={columns}
+                        rowClick={row_click}
+                      />
                     )}
-                    style={{
-                      width: header.getSize(),
-                      minWidth: header.column.columnDef.minSize,
-                      maxWidth: header.column.columnDef.maxSize,
-                    }}
-                    onClick={() => {
-                      if (onHeaderClick && header.id !== "expand") {
-                        onHeaderClick(header.id);
-                      }
-                    }}
-                  >
-                    <div className={cn("flex items-center gap-2", features?.tree && header.id === "name" && "pl-8")}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                      {isSorted && (
-                        <div className="ml-1">
-                          {sortDirection === undefined ? (
-                            <ArrowUp className="h-4 w-4 text-muted-foreground" />
-                          ) : sortDirection ? (
-                            <ArrowDown className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ArrowUp className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full h-24 flex items-center justify-center text-muted-foreground text-sm border rounded-lg bg-card">
+                  No results.
+                </div>
+              )
+            ) : table.getRowModel().rows?.length ? (
+              table
+                .getRowModel()
+                .rows.filter(shouldRenderRow)
+                .map((row) => (
+                  <div key={row.id}>
+                    {listRender ? (
+                      <div
+                        onClick={row_click ? () => row_click(row.original) : undefined}
+                        className={cn(row_click && "cursor-pointer")}
+                      >
+                        {listRender(row.original)}
+                      </div>
+                    ) : (
+                      <DefaultCard
+                        rowData={row.original}
+                        columns={columns}
+                        rowClick={row_click}
+                      />
+                    )}
+                  </div>
+                ))
+            ) : (
+              <div className="col-span-full h-24 flex items-center justify-center text-muted-foreground text-sm border rounded-lg bg-card">
+                No results.
+              </div>
+            )}
+          </div>
+          <ScrollBar orientation="vertical" />
+        </ScrollArea>
+      ) : (
+        <TableUI className="w-full flex-shrink-0 relative">
+          <TableHeader className=" sticky top-0 bg-background">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header, index) => {
+                  const isFirst = index === 0;
+                  const isLast = index === headerGroup.headers.length - 1;
+                  const sortDirection = table
+                    .getState()
+                    .sorting.find((s) => s.id === header.id)?.desc;
+                  const isSorted = table
+                    .getState()
+                    .sorting.some((s) => s.id === header.id);
 
-        <TableBody className="">
-          {/* <ScrollArea className="bg flex-1 w-full"> */}
-          {features?.tree ? (
-            // For tree feature, use our custom visible rows logic
-            getAllVisibleRows.length ? (
-              getAllVisibleRows.map((rowData, index) => {
-                const level = getRowLevel(rowData);
-                const canExpand = hasChildren(rowData);
-                const isDetailExpanded = isDetailRowExpanded(rowData.id);
-
-                return (
-                  <React.Fragment key={rowData.id}>
-                    <TableRow
-                      onClick={() => row_click?.(rowData)}
+                  return (
+                    <TableHead
+                      key={header.id}
+                      colSpan={header.colSpan}
                       className={cn(
-                        "border-y cursor-pointer transition-colors hover:bg-muted overflow-y-auto",
-                        index % 2 === 1 && "bg-muted",
+                        "capitalize font-medium whitespace-normal text-ellipsis z-[99]",
+                        isFirst && "rounded-tl-md",
+                        isLast && "rounded-tr-md",
+                        onHeaderClick && "cursor-pointer hover:bg-muted/50",
                       )}
+                      style={{
+                        width: header.getSize(),
+                        minWidth: header.column.columnDef.minSize,
+                        maxWidth: header.column.columnDef.maxSize,
+                      }}
+                      onClick={() => {
+                        if (onHeaderClick && header.id !== "expand") {
+                          onHeaderClick(header.id);
+                        }
+                      }}
                     >
-                      {columns.map((column, cellIndex) => (
-                        <TableCell
-                          key={`${rowData.id}-${cellIndex}`}
-                          className="whitespace-normal text-ellipsis align-top p-3"
-                          style={{
-                            paddingLeft:
-                              cellIndex === 0 && features?.tree
-                                ? `${level * 32 + 12}px`
-                                : "12px",
-                          }}
-                        >
-                          <div className="flex items-start">
-                            {cellIndex === 0 && features?.tree && canExpand && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="p-0 w-6 h-6 mr-2 hover:bg-transparent flex-shrink-0"
-                                onClick={(e) =>
-                                  toggleRow(rowData.id, rowData, e)
-                                }
-                              >
-                                {isRowExpanded(rowData.id) ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
-                              </Button>
+                      <div
+                        className={cn(
+                          "flex items-center gap-2",
+                          features?.tree && header.id === "name" && "pl-8",
+                        )}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
                             )}
-                            {cellIndex === 0 &&
-                              features?.tree &&
-                              !canExpand &&
-                              level > 0 && (
-                                <div className="w-6 h-6 mr-2 flex-shrink-0 flex items-center justify-center">
-                                  <CornerDownRight className="h-4 w-4 text-muted-foreground" />
+                        {isSorted && (
+                          <div className="ml-1">
+                            {sortDirection === undefined ? (
+                              <ArrowUp className="h-4 w-4 text-muted-foreground" />
+                            ) : sortDirection ? (
+                              <ArrowDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ArrowUp className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+
+          <TableBody className="">
+            {/* <ScrollArea className="bg flex-1 w-full"> */}
+            {features?.tree ? (
+              // For tree feature, use our custom visible rows logic
+              getAllVisibleRows.length ? (
+                getAllVisibleRows.map((rowData, index) => {
+                  const level = getRowLevel(rowData);
+                  const canExpand = hasChildren(rowData);
+                  const isDetailExpanded = isDetailRowExpanded(rowData.id);
+
+                  return (
+                    <React.Fragment key={rowData.id}>
+                      <TableRow
+                        onClick={() => row_click?.(rowData)}
+                        className={cn(
+                          "border-y cursor-pointer transition-colors hover:bg-muted overflow-y-auto",
+                          index % 2 === 1 && "bg-muted",
+                        )}
+                      >
+                        {columns.map((column, cellIndex) => (
+                          <TableCell
+                            key={`${rowData.id}-${cellIndex}`}
+                            className="whitespace-normal text-ellipsis align-top p-3"
+                            style={{
+                              paddingLeft:
+                                cellIndex === 0 && features?.tree
+                                  ? `${level * 32 + 12}px`
+                                  : "12px",
+                            }}
+                          >
+                            <div className="flex items-start">
+                              {cellIndex === 0 &&
+                                features?.tree &&
+                                canExpand && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="p-0 w-6 h-6 mr-2 hover:bg-transparent flex-shrink-0"
+                                    onClick={(e) =>
+                                      toggleRow(rowData.id, rowData, e)
+                                    }
+                                  >
+                                    {isRowExpanded(rowData.id) ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                )}
+                              {cellIndex === 0 &&
+                                features?.tree &&
+                                !canExpand &&
+                                level > 0 && (
+                                  <div className="w-6 h-6 mr-2 flex-shrink-0 flex items-center justify-center">
+                                    <CornerDownRight className="h-4 w-4 text-muted-foreground" />
+                                  </div>
+                                )}
+                              {cellIndex === 0 &&
+                                features?.tree &&
+                                !canExpand &&
+                                level === 0 && (
+                                  <div className="w-6 h-6 mr-2 flex-shrink-0" />
+                                )}
+                              {column.cell
+                                ? flexRender(column.cell, {
+                                    getValue: (columnId?: string) =>
+                                      (rowData as any)[
+                                        columnId || column.id || ""
+                                      ],
+                                    row: {
+                                      original: rowData,
+                                      getValue: (columnId: string) =>
+                                        (rowData as any)[columnId],
+                                    },
+                                    column: {
+                                      id: column.id,
+                                      columnDef: column,
+                                    },
+                                    cell: {
+                                      getValue: () =>
+                                        (rowData as any)[column.id || ""],
+                                    },
+                                    table: table,
+                                  } as any)
+                                : (rowData as any)[column.id || ""]}
+                            </div>
+                          </TableCell>
+                        ))}
+                      </TableRow>
+
+                      {/* Expanded Detail Row */}
+                      {isDetailExpanded && expandable && (
+                        <TableRow className="bg-muted/30">
+                          <TableCell
+                            colSpan={columns.length}
+                            className="p-0 border-y"
+                          >
+                            <div className="">
+                              {expandable.renderExpandedContent ? (
+                                expandable.renderExpandedContent(rowData)
+                              ) : (
+                                <div className="text-sm text-muted-foreground p-4">
+                                  Expanded content for {rowData.id}
                                 </div>
                               )}
-                            {cellIndex === 0 &&
-                              features?.tree &&
-                              !canExpand &&
-                              level === 0 && (
-                                <div className="w-6 h-6 mr-2 flex-shrink-0" />
-                              )}
-                            {column.cell
-                              ? flexRender(column.cell, {
-                                  getValue: (columnId?: string) =>
-                                    (rowData as any)[
-                                      columnId || column.id || ""
-                                    ],
-                                  row: {
-                                    original: rowData,
-                                    getValue: (columnId: string) =>
-                                      (rowData as any)[columnId],
-                                  },
-                                  column: {
-                                    id: column.id,
-                                    columnDef: column,
-                                  },
-                                  cell: {
-                                    getValue: () =>
-                                      (rowData as any)[column.id || ""],
-                                  },
-                                  table: table,
-                                } as any)
-                              : (rowData as any)[column.id || ""]}
-                          </div>
-                        </TableCell>
-                      ))}
-                    </TableRow>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No results.
+                  </TableCell>
+                </TableRow>
+              )
+            ) : // Original logic for non-tree tables
+            table.getRowModel().rows?.length ? (
+              table
+                .getRowModel()
+                .rows.filter(shouldRenderRow)
+                .map((row, index) => {
+                  const level = getRowLevel(row.original);
+                  const canExpand = hasChildren(row.original);
+                  const isDetailExpanded = isDetailRowExpanded(row.original.id);
 
-                    {/* Expanded Detail Row */}
-                    {isDetailExpanded && expandable && (
-                      <TableRow className="bg-muted/30">
-                        <TableCell
-                          colSpan={columns.length}
-                          className="p-0 border-y"
-                        >
-                          <div className="">
-                            {expandable.renderExpandedContent ? (
-                              expandable.renderExpandedContent(rowData)
-                            ) : (
-                              <div className="text-sm text-muted-foreground p-4">
-                                Expanded content for {rowData.id}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
+                  return (
+                    <React.Fragment key={row.id}>
+                      <TableRow
+                        onClick={() => row_click?.(row.original)}
+                        data-state={row.getIsSelected() && "selected"}
+                        className={cn(
+                          "border-y cursor-pointer transition-colors hover:bg-muted overflow-y-auto ",
+                          index % 2 === 1 && "bg-muted",
+                        )}
+                      >
+                        {row.getVisibleCells().map((cell, cellIndex) => (
+                          <TableCell
+                            key={cell.id}
+                            className=" text-ellipsis align-middle"
+                            style={{
+                              paddingLeft:
+                                cellIndex === 0 && features?.tree
+                                  ? `${level * 32 + 12}px`
+                                  : "12px",
+                              width: cell.column.getSize() || "100%",
+                              minWidth: cell.column.columnDef.minSize,
+                              maxWidth: cell.column.columnDef.maxSize,
+                            }}
+                          >
+                            <div className="flex items-start text-start">
+                              {cellIndex === 0 &&
+                                features?.tree &&
+                                canExpand && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="p-0 w-6 h-6 mr-2 hover:bg-transparent flex-shrink-0"
+                                    onClick={(e) =>
+                                      toggleRow(
+                                        row.original.id,
+                                        row.original,
+                                        e,
+                                      )
+                                    }
+                                  >
+                                    {isRowExpanded(row.original.id) ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                )}
+                              {cellIndex === 0 &&
+                                features?.tree &&
+                                !canExpand &&
+                                level > 0 && (
+                                  <div className="w-6 h-6 mr-2 flex-shrink-0 flex items-center justify-center">
+                                    <CornerDownRight className="h-4 w-4 text-muted-foreground" />
+                                  </div>
+                                )}
+                              {cellIndex === 0 &&
+                                features?.tree &&
+                                !canExpand &&
+                                level === 0 && (
+                                  <div className="w-6 h-6 mr-2 flex-shrink-0" />
+                                )}
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </div>
+                          </TableCell>
+                        ))}
                       </TableRow>
-                    )}
-                  </React.Fragment>
-                );
-              })
+
+                      {/* Expanded Detail Row */}
+                      {isDetailExpanded && expandable && (
+                        <TableRow className="bg-muted/30">
+                          <TableCell
+                            colSpan={row.getVisibleCells().length}
+                            className="p-0 border-y"
+                          >
+                            <div className="">
+                              {expandable.renderExpandedContent ? (
+                                expandable.renderExpandedContent(row.original)
+                              ) : (
+                                <div className="text-sm text-muted-foreground p-4">
+                                  Expanded content for {row.original.id}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })
             ) : (
               <TableRow>
                 <TableCell
@@ -385,113 +566,102 @@ export function DataTable<
                   No results.
                 </TableCell>
               </TableRow>
-            )
-          ) : // Original logic for non-tree tables
-          table.getRowModel().rows?.length ? (
-            table
-              .getRowModel()
-              .rows.filter(shouldRenderRow)
-              .map((row, index) => {
-                const level = getRowLevel(row.original);
-                const canExpand = hasChildren(row.original);
-                const isDetailExpanded = isDetailRowExpanded(row.original.id);
+            )}
+            {/* </ScrollArea> */}
+          </TableBody>
+        </TableUI>
+      )}
+    </div>
+  );
+}
 
-                return (
-                  <React.Fragment key={row.id}>
-                    <TableRow
-                      onClick={() => row_click?.(row.original)}
-                      data-state={row.getIsSelected() && "selected"}
-                      className={cn(
-                        "border-y cursor-pointer transition-colors hover:bg-muted overflow-y-auto ",
-                        index % 2 === 1 && "bg-muted",
-                      )}
-                    >
-                      {row.getVisibleCells().map((cell, cellIndex) => (
-                        <TableCell
-                          key={cell.id}
-                          className=" text-ellipsis align-middle"
-                          style={{
-                            paddingLeft:
-                              cellIndex === 0 && features?.tree
-                                ? `${level * 32 + 12}px`
-                                : "12px",
-                            width: cell.column.getSize() || "100%",
-                            minWidth: cell.column.columnDef.minSize,
-                            maxWidth: cell.column.columnDef.maxSize,
-                          }}
-                        >
-                          <div className="flex items-start text-start">
-                            {cellIndex === 0 && features?.tree && canExpand && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="p-0 w-6 h-6 mr-2 hover:bg-transparent flex-shrink-0"
-                                onClick={(e) =>
-                                  toggleRow(row.original.id, row.original, e)
-                                }
-                              >
-                                {isRowExpanded(row.original.id) ? (
-                                  <ChevronDown className="h-4 w-4" />
-                                ) : (
-                                  <ChevronRight className="h-4 w-4" />
-                                )}
-                              </Button>
-                            )}
-                            {cellIndex === 0 &&
-                              features?.tree &&
-                              !canExpand &&
-                              level > 0 && (
-                                <div className="w-6 h-6 mr-2 flex-shrink-0 flex items-center justify-center">
-                                  <CornerDownRight className="h-4 w-4 text-muted-foreground" />
-                                </div>
-                              )}
-                            {cellIndex === 0 &&
-                              features?.tree &&
-                              !canExpand &&
-                              level === 0 && (
-                                <div className="w-6 h-6 mr-2 flex-shrink-0" />
-                              )}
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )}
-                          </div>
-                        </TableCell>
-                      ))}
-                    </TableRow>
+function DefaultCard<TData>({
+  rowData,
+  columns,
+  rowClick,
+}: {
+  rowData: TData;
+  columns: ColumnDef<TData, any>[];
+  rowClick?: (row: TData) => void;
+}) {
+  const primaryColumn =
+    columns.find(
+      (c) =>
+        c.id === "name" ||
+        c.id === "title" ||
+        (c as any).accessorKey === "name" ||
+        (c as any).accessorKey === "title",
+    ) || columns[0];
+  const otherColumns = columns.filter(
+    (c) => c !== primaryColumn && c.id !== "expand",
+  );
 
-                    {/* Expanded Detail Row */}
-                    {isDetailExpanded && expandable && (
-                      <TableRow className="bg-muted/30">
-                        <TableCell
-                          colSpan={row.getVisibleCells().length}
-                          className="p-0 border-y"
-                        >
-                          <div className="">
-                            {expandable.renderExpandedContent ? (
-                              expandable.renderExpandedContent(row.original)
-                            ) : (
-                              <div className="text-sm text-muted-foreground p-4">
-                                Expanded content for {row.original.id}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </React.Fragment>
-                );
-              })
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                No results.
-              </TableCell>
-            </TableRow>
-          )}
-          {/* </ScrollArea> */}
-        </TableBody>
-      </TableUI>
+  return (
+    <div
+      onClick={() => rowClick?.(rowData)}
+      className={cn(
+        "flex flex-col p-4 rounded-xl border bg-card text-card-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/20 h-full min-h-[140px]",
+        rowClick && "cursor-pointer hover:bg-muted/30",
+      )}
+    >
+      {primaryColumn && (
+        <div className="font-semibold text-sm mb-3 text-foreground line-clamp-2">
+          {primaryColumn.cell
+            ? flexRender(primaryColumn.cell, {
+                getValue: (columnId?: string) =>
+                  (rowData as any)[columnId || primaryColumn.id || ""],
+                row: {
+                  original: rowData,
+                  getValue: (columnId: string) => (rowData as any)[columnId],
+                },
+                column: { id: primaryColumn.id, columnDef: primaryColumn },
+                cell: {
+                  getValue: () => (rowData as any)[primaryColumn.id || ""],
+                },
+              } as any)
+            : (rowData as any)[
+                primaryColumn.id || (primaryColumn as any).accessorKey || ""
+              ]}
+        </div>
+      )}
+
+      <div className="space-y-2 mt-auto">
+        {otherColumns.map((column, idx) => {
+          const headerText =
+            typeof column.header === "string"
+              ? column.header
+              : column.id || (column as any).accessorKey || "";
+
+          const val = column.cell
+            ? flexRender(column.cell, {
+                getValue: (columnId?: string) =>
+                  (rowData as any)[columnId || column.id || ""],
+                row: {
+                  original: rowData,
+                  getValue: (columnId: string) => (rowData as any)[columnId],
+                },
+                column: { id: column.id, columnDef: column },
+                cell: { getValue: () => (rowData as any)[column.id || ""] },
+              } as any)
+            : (rowData as any)[column.id || (column as any).accessorKey || ""];
+
+          if (val === undefined || val === null || val === "") return null;
+
+          return (
+            <div
+              key={idx}
+              className="flex justify-between items-start gap-2 text-xs"
+            >
+              <span className="text-muted-foreground capitalize font-medium">
+                {headerText}:
+              </span>
+              <span className="text-foreground text-right line-clamp-2">
+                {val}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

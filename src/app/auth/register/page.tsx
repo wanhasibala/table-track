@@ -73,11 +73,29 @@ export default function RegisterPage() {
       // FIX: Changed table target from "profiles" to "user_account"
       const { data: account, error: profileError } = await supabase
         .from("user_account")
-        .select("tenant_id, role")
+        .select("tenant_id, role, name, email")
         .eq("id", user.id)
         .maybeSingle();
 
       setLoading(false);
+
+      if (user) {
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            id: user.id,
+            email: account?.email || user.email,
+            name: account?.name || account?.email || user.email,
+            tenant_id: account?.tenant_id,
+          })
+        );
+        localStorage.setItem(
+          "role",
+          JSON.stringify({
+            name: account?.role || "User",
+          })
+        );
+      }
 
       // Evaluate tenant workspace routing rules
       if (!account || !account.tenant_id) {

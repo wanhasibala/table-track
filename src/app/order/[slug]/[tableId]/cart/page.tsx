@@ -1,13 +1,20 @@
-import Link from 'next/link';
+"use client";
+import { useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
 
-interface Props { params: { slug: string; tableId: string } }
-export default function Page({ params }: Props) {
-  const { slug, tableId } = params;
+export default function CartPageRedirect() {
+  const router = useRouter();
+  const params = useParams();
+  
+  useEffect(() => {
+    if (params.slug && params.tableId) {
+      router.replace(`/order/${params.slug}/${params.tableId}`);
+    }
+  }, [router, params]);
+
   return (
-    <main style={{padding:20}}>
-      <h1>Cart & Checkout</h1>
-      <p>Cart for table <strong>{tableId}</strong> at <strong>{slug}</strong>.</p>
-      <Link href={`/order/${slug}/${tableId}`}>Back to Menu</Link>
-    </main>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
   );
 }
