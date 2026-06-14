@@ -486,9 +486,9 @@ export default function OrderMenuPage() {
       // Redirect to real-time payment page
       const isSubdomain = typeof window !== "undefined" && window.location.hostname.includes(slug);
       if (isSubdomain) {
-        router.push(`/${tableId}/payment?order_id=${orderId}`);
+        router.push(`/payment?order_id=${orderId}`);
       } else {
-        router.push(`/order/${slug}/${tableId}/payment?order_id=${orderId}`);
+        router.push(`/order/payment?order_id=${orderId}`);
       }
     } catch (err: any) {
       console.error(err);

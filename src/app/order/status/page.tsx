@@ -2,7 +2,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { useSearchParams, useRouter, useParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { 
   CheckCircle2, 
@@ -35,18 +35,16 @@ const statusSteps = [
 export default function OrderStatusPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const params = useParams();
-  
-  const slug = params.slug as string;
-  const tableId = params.tableId as string;
   const orderId = searchParams.get("order_id");
-
-  const isSubdomain = typeof window !== "undefined" && window.location.hostname.includes(slug);
-  const menuUrl = isSubdomain ? `/${tableId}` : `/order/${slug}/${tableId}`;
 
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const slug = order?.tenant?.slug || "";
+  const tableId = order?.table_id || "new-order";
+  const isSubdomain = typeof window !== "undefined" && slug && window.location.hostname.includes(slug);
+  const menuUrl = isSubdomain ? `/${tableId}` : `/order/${slug}/${tableId}`;
 
   useEffect(() => {
     if (!orderId) {
@@ -61,7 +59,7 @@ export default function OrderStatusPage() {
       try {
         const { data: orderData, error: orderError } = await supabase
           .from("order_table")
-          .select("*, table_spot(name)")
+          .select("*, table_spot(name), tenant(*)")
           .eq("id", orderId)
           .single();
         if (orderError) throw orderError;

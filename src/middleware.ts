@@ -41,6 +41,16 @@ export function middleware(request: NextRequest) {
       !pathname.startsWith("/api") &&
       !pathname.includes(".")
     ) {
+      // Direct rewrite for payment and status under subdomain
+      if (pathname === "/payment" || pathname === "/payment/") {
+        url.pathname = "/order/payment";
+        return NextResponse.rewrite(url);
+      }
+      if (pathname === "/status" || pathname === "/status/") {
+        url.pathname = "/order/status";
+        return NextResponse.rewrite(url);
+      }
+
       // Split pathname: e.g. "/table-1/status" -> ["table-1", "status"]
       const pathParts = pathname.split("/").filter(Boolean);
       

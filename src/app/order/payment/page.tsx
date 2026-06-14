@@ -2,7 +2,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { useSearchParams, useRouter, useParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { 
   CreditCard, 
@@ -77,10 +77,6 @@ const DEFAULT_STATIC_QRIS = "00020101021126590016ID10200214000301030300052040000
 export default function PaymentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const params = useParams();
-  
-  const slug = params.slug as string;
-  const tableId = params.tableId as string;
   const orderId = searchParams.get("order_id");
 
   const [order, setOrder] = useState<any>(null);
@@ -104,7 +100,16 @@ export default function PaymentPage() {
   const qrisPayloadBase = tenant?.qris_payload || DEFAULT_STATIC_QRIS;
   const dynamicQrisPayload = order ? generateDynamicQRIS(qrisPayloadBase, order.total_amount) : "";
   
-  const isSubdomain = typeof window !== "undefined" && window.location.hostname.includes(slug);
+  const slug = order?.tenant?.slug || "";
+  const isSubdomain = typeof window !== "undefined" && slug && window.location.hostname.includes(slug);
+
+  const redirectToStatus = () => {
+    if (isSubdomain) {
+      router.push(`/status?order_id=${orderId}`);
+    } else {
+      router.push(`/order/status?order_id=${orderId}`);
+    }
+  };
 
   useEffect(() => {
     if (!orderId) {
@@ -144,7 +149,13 @@ export default function PaymentPage() {
           setPaymentRecord(payData);
           // If already paid, redirect straight to status
           if (payData.status === "paid" || orderData.status !== "pending") {
-            redirectToStatus();
+            const orderSlug = orderData?.tenant?.slug || "";
+            const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
+            if (currentIsSubdomain) {
+              router.push(`/status?order_id=${orderId}`);
+            } else {
+              router.push(`/order/status?order_id=${orderId}`);
+            }
           }
         }
       } catch (e: any) {
@@ -169,11 +180,22 @@ export default function PaymentPage() {
           filter: `id=eq.${orderId}`,
         },
         (payload) => {
-          setOrder((prev: any) => ({ ...prev, ...payload.new }));
-          if (payload.new.status !== "pending" && payload.new.status !== "cancelled") {
-            toast.success("Payment confirmed by Cashier!");
-            redirectToStatus();
-          }
+          setOrder((prev: any) => {
+            const nextOrder = { ...prev, ...payload.new };
+            if (nextOrder.status !== "pending" && nextOrder.status !== "cancelled") {
+              toast.success("Payment confirmed by Cashier!");
+              setTimeout(() => {
+                const orderSlug = nextOrder?.tenant?.slug || "";
+                const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
+                if (currentIsSubdomain) {
+                  router.push(`/status?order_id=${orderId}`);
+                } else {
+                  router.push(`/order/status?order_id=${orderId}`);
+                }
+              }, 50);
+            }
+            return nextOrder;
+          });
         }
       )
       .on(
@@ -190,7 +212,15 @@ export default function PaymentPage() {
             setPaymentRecord(newPay);
             if (newPay.status === "paid") {
               toast.success("Payment verified successfully!");
-              redirectToStatus();
+              setTimeout(() => {
+                const orderSlug = order?.tenant?.slug || "";
+                const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
+                if (currentIsSubdomain) {
+                  router.push(`/status?order_id=${orderId}`);
+                } else {
+                  router.push(`/order/status?order_id=${orderId}`);
+                }
+              }, 50);
             }
           }
         }
@@ -200,7 +230,7 @@ export default function PaymentPage() {
     return () => {
       supabase.removeChannel(orderChannel);
     };
-  }, [orderId]);
+  }, [orderId, order]);
 
   // QRIS Countdown Timer
   useEffect(() => {
@@ -213,14 +243,6 @@ export default function PaymentPage() {
 
     return () => clearInterval(timer);
   }, [countdown, paymentRecord]);
-
-  const redirectToStatus = () => {
-    if (isSubdomain) {
-      router.push(`/${tableId}/status?order_id=${orderId}`);
-    } else {
-      router.push(`/order/${slug}/${tableId}/status?order_id=${orderId}`);
-    }
-  };
 
   const handlePaymentSubmit = async () => {
     if (!order) return;
