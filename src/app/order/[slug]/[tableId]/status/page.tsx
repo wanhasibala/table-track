@@ -41,6 +41,9 @@ export default function OrderStatusPage() {
   const tableId = params.tableId as string;
   const orderId = searchParams.get("order_id");
 
+  const isSubdomain = typeof window !== "undefined" && window.location.hostname.includes(slug);
+  const menuUrl = isSubdomain ? `/${tableId}` : `/order/${slug}/${tableId}`;
+
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +126,7 @@ export default function OrderStatusPage() {
           We couldn&apos;t locate this order. Please verify the URL or try ordering again.
         </p>
         <button
-          onClick={() => router.push(`/order/${slug}/${tableId}`)}
+          onClick={() => router.push(menuUrl)}
           className="mt-6 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors"
         >
           Go to Menu
@@ -141,7 +144,7 @@ export default function OrderStatusPage() {
       <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border/50">
         <div className="max-w-xl mx-auto px-4 py-4 flex items-center justify-between">
           <button
-            onClick={() => router.push(`/order/${slug}/${tableId}`)}
+            onClick={() => router.push(menuUrl)}
             className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -164,9 +167,20 @@ export default function OrderStatusPage() {
               <h2 className="text-lg font-extrabold text-foreground">
                 {isCancelled ? "Order Cancelled" : "Track Your Fruits"}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {order.table_spot?.name ? `Table Spot: ${order.table_spot.name}` : "Online Order"}
-              </p>
+              <div className="flex flex-col gap-1 mt-1 text-xs text-muted-foreground">
+                <span className="font-semibold text-primary capitalize">
+                  Option: {order.type?.replace("_", " ") || "Dine In"}
+                </span>
+                {order.table_spot?.name && (
+                  <span>Table Spot: {order.table_spot.name}</span>
+                )}
+                {order.type === "delivery" && order.delivery_address && (
+                  <div className="mt-1.5 p-2 bg-muted/50 border border-border/40 rounded-lg text-[11px] leading-relaxed max-w-[280px] sm:max-w-none">
+                    <span className="font-bold text-foreground block mb-0.5">Delivery Address:</span>
+                    {order.delivery_address}
+                  </div>
+                )}
+              </div>
             </div>
             
             <span className={cn(
@@ -262,17 +276,29 @@ export default function OrderStatusPage() {
             ))}
           </div>
 
-          <div className="border-t border-border/80 pt-4 mt-2 flex justify-between items-center">
-            <span className="text-sm font-semibold text-muted-foreground">Amount Paid</span>
-            <span className="text-lg font-extrabold text-primary font-mono">
-              {formatCurrency(order.total_amount)}
-            </span>
+          <div className="border-t border-border/60 pt-3 mt-3 space-y-1.5 text-xs text-muted-foreground animate-in fade-in duration-200">
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span className="font-mono">{formatCurrency(order.total_amount - (order.delivery_fee || 0))}</span>
+            </div>
+            {order.type === "delivery" && (
+              <div className="flex justify-between">
+                <span>Delivery Fee</span>
+                <span className="font-mono">{formatCurrency(order.delivery_fee || 0)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm font-extrabold text-foreground border-t border-border/40 pt-2.5 mt-1">
+              <span>Amount Paid</span>
+              <span className="text-lg font-extrabold text-primary font-mono">
+                {formatCurrency(order.total_amount)}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* CTA */}
         <button
-          onClick={() => router.push(`/order/${slug}/${tableId}`)}
+          onClick={() => router.push(menuUrl)}
           className="w-full py-3.5 rounded-xl border border-dashed border-primary/40 text-primary font-bold hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 shadow-sm text-sm"
         >
           <ArrowLeft className="h-4 w-4" />

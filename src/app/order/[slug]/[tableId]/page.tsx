@@ -4,15 +4,17 @@ import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { 
-  ChefHat, 
-  ShoppingBag, 
-  Plus, 
-  Minus, 
-  Search, 
-  X, 
-  Check, 
-  UtensilsCrossed 
+import {
+  ChefHat,
+  ShoppingBag,
+  Plus,
+  Minus,
+  Search,
+  X,
+  Check,
+  UtensilsCrossed,
+  MapPin,
+  Navigation,
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import {
@@ -21,6 +23,7 @@ import {
   DialogTitle,
   DialogHeader,
 } from "@/components/ui/dialog";
+import Image from "next/image";
 
 interface MenuVariantOption {
   id: string;
@@ -93,15 +96,16 @@ export default function OrderMenuPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [tableSpot, setTableSpot] = useState<any>(null);
-  
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isCartOpen, setIsCartOpen] = useState(false);
-  
+
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
-  
+
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
@@ -111,23 +115,131 @@ export default function OrderMenuPage() {
   const [customizingNotes, setCustomizingNotes] = useState<string>("");
   const [customizingQty, setCustomizingQty] = useState<number>(1);
 
+  // Delivery State
+  const [orderType, setOrderType] = useState<"dine_in" | "takeaway" | "delivery">(
+    tableId === "new-order" ? "takeaway" : "dine_in"
+  );
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [deliveryDistanceKm, setDeliveryDistanceKm] = useState<number | null>(null);
+  const [deliveryDurationText, setDeliveryDurationText] = useState("");
+  const [deliveryLatitude, setDeliveryLatitude] = useState<number | null>(null);
+  const [deliveryLongitude, setDeliveryLongitude] = useState<number | null>(null);
+  const [calculatingDelivery, setCalculatingDelivery] = useState(false);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [locatingUser, setLocatingUser] = useState(false);
+
+  const checkDeliveryDetails = async (
+    addressToCalculate?: string,
+    coords?: { lat: number; lng: number }
+  ) => {
+    const targetAddress = addressToCalculate !== undefined ? addressToCalculate : deliveryAddress;
+    
+    if (!targetAddress && !coords) {
+      toast.error("Please enter a delivery address or use your current location");
+      return;
+    }
+
+    setCalculatingDelivery(true);
+    setDeliveryError(null);
+
+    try {
+      const response = await fetch("/api/delivery/calculate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          address: targetAddress,
+          latitude: coords?.lat,
+          longitude: coords?.lng,
+          tenantId: tenant?.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Could not calculate delivery details.");
+      }
+
+      setDeliveryFee(data.deliveryFee);
+      setDeliveryDistanceKm(data.distanceKm);
+      setDeliveryDurationText(data.durationText);
+      setDeliveryLatitude(data.latitude);
+      setDeliveryLongitude(data.longitude);
+      if (data.address) {
+        setDeliveryAddress(data.address);
+      }
+      toast.success(`Delivery calculated: ${data.distanceKm} km away`);
+    } catch (err: any) {
+      console.error(err);
+      setDeliveryError(err.message || "Failed to calculate delivery fee.");
+      setDeliveryFee(0);
+      setDeliveryDistanceKm(null);
+      setDeliveryDurationText("");
+      setDeliveryLatitude(null);
+      setDeliveryLongitude(null);
+      toast.error(err.message || "Delivery calculation failed.");
+    } finally {
+      setCalculatingDelivery(false);
+    }
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setLocatingUser(true);
+    setDeliveryError(null);
+    toast.info("Requesting location access...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        toast.success("Location acquired! Calculating delivery...");
+        setLocatingUser(false);
+        await checkDeliveryDetails(undefined, { lat: latitude, lng: longitude });
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setLocatingUser(false);
+        let msg = "Could not get your location.";
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = "Location permission denied. Please enter your address manually.";
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = "Location information is unavailable. Please enter your address manually.";
+        } else if (error.code === error.TIMEOUT) {
+          msg = "Location request timed out. Please enter your address manually.";
+        }
+        toast.error(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
         const supabase = createClient();
-        
+
         // 1. Fetch Tenant
         const { data: tenantData, error: tenantError } = await supabase
           .from("tenant")
           .select("*")
-          .eq("slug", slug)
-          .single();
-          
+          .ilike("slug", slug)
+          .maybeSingle();
+
         if (tenantError) throw tenantError;
         setTenant(tenantData);
 
         // 2. Fetch Table Spot (only if tableId is a valid UUID and not "new-order")
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tableId);
+        const isUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            tableId,
+          );
         if (tableId && tableId !== "new-order" && isUuid) {
           const { data: tableData } = await supabase
             .from("table_spot")
@@ -151,7 +263,8 @@ export default function OrderMenuPage() {
         // 4. Fetch Menu Items (Fruits) with nested variants & options
         const { data: menuData } = await supabase
           .from("menu_item")
-          .select(`
+          .select(
+            `
             *,
             category(name),
             menu_variant(
@@ -164,16 +277,18 @@ export default function OrderMenuPage() {
                 price_add
               )
             )
-          `)
+          `,
+          )
           .eq("tenant_id", tenantData.id)
           .eq("is_available", true);
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setMenuItems((menuData || []).map((m: any) => ({
-          ...m,
-          category: m.category ? { name: m.category.name } : null
-        })));
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setMenuItems(
+          (menuData || []).map((m: any) => ({
+            ...m,
+            category: m.category ? { name: m.category.name } : null,
+          })),
+        );
       } catch (err: any) {
         console.error("Error loading shop details:", err);
         toast.error("Failed to load restaurant menu.");
@@ -225,16 +340,14 @@ export default function OrderMenuPage() {
     menuItem: MenuItem,
     optionId: string | null = null,
     optionLabel: string | null = null,
-    optionPriceAdd: number = 0
+    optionPriceAdd: number = 0,
   ) => {
     const cartItemId = `${menuItem.id}_${optionId || "none"}`;
     setCart((prev) => {
       const existing = prev.find((item) => item.id === cartItemId);
       if (existing) {
         return prev.map((item) =>
-          item.id === cartItemId
-            ? { ...item, qty: item.qty + 1 }
-            : item
+          item.id === cartItemId ? { ...item, qty: item.qty + 1 } : item,
         );
       }
       return [
@@ -250,7 +363,9 @@ export default function OrderMenuPage() {
         },
       ];
     });
-    toast.success(`${menuItem.name}${optionLabel ? ` (${optionLabel})` : ""} added to cart!`);
+    toast.success(
+      `${menuItem.name}${optionLabel ? ` (${optionLabel})` : ""} added to cart!`,
+    );
   };
 
   const updateQty = (cartItemId: string, amount: number) => {
@@ -269,20 +384,20 @@ export default function OrderMenuPage() {
 
   const updateItemNotes = (cartItemId: string, notes: string) => {
     setCart((prev) =>
-      prev.map((item) =>
-        item.id === cartItemId ? { ...item, notes } : item
-      )
+      prev.map((item) => (item.id === cartItemId ? { ...item, notes } : item)),
     );
   };
 
   const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
   const cartTotal = cart.reduce(
     (sum, item) => sum + item.qty * (item.menuItem.price + item.optionPriceAdd),
-    0
+    0,
   );
 
   const filteredMenuItems = menuItems.filter((item) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = item.name
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
     const matchesCategory =
       selectedCategory === "all" || item.category_id === selectedCategory;
     return matchesSearch && matchesCategory;
@@ -299,16 +414,42 @@ export default function OrderMenuPage() {
       return;
     }
 
+    if (orderType === "delivery") {
+      if (!deliveryAddress.trim()) {
+        toast.error("Please enter your delivery address");
+        return;
+      }
+      if (!customerPhone.trim()) {
+        toast.error("Please enter your phone number for delivery updates");
+        return;
+      }
+      if (deliveryDistanceKm === null) {
+        toast.error("Please calculate your delivery fee first");
+        return;
+      }
+      if (deliveryError) {
+        toast.error(`Cannot place order: ${deliveryError}`);
+        return;
+      }
+    }
+
     setCheckoutLoading(true);
     try {
       const supabase = createClient();
 
       const orderBody = {
-        table_id: (tableId && tableId !== "new-order") ? tableId : null,
+        table_id: tableId && tableId !== "new-order" && orderType === "dine_in" ? tableId : null,
         status: "pending" as const,
         notes: `${customerName.trim()}'s Online Order. Notes: ${orderNotes.trim() || "None"}`,
-        total_amount: cartTotal,
+        customer_name: customerName.trim(),
+        customer_phone: customerPhone.trim() || null,
+        total_amount: cartTotal + (orderType === "delivery" ? deliveryFee : 0),
         tenant_id: tenant.id,
+        type: orderType,
+        delivery_fee: orderType === "delivery" ? deliveryFee : 0,
+        delivery_address: orderType === "delivery" ? deliveryAddress.trim() : null,
+        delivery_latitude: orderType === "delivery" ? deliveryLatitude : null,
+        delivery_longitude: orderType === "delivery" ? deliveryLongitude : null,
       };
 
       // 1. Create order
@@ -341,9 +482,14 @@ export default function OrderMenuPage() {
       toast.success("Order placed successfully!");
       setCart([]);
       setIsCartOpen(false);
-      
-      // Redirect to real-time status page
-      router.push(`/order/${slug}/${tableId}/status?order_id=${orderId}`);
+
+      // Redirect to real-time payment page
+      const isSubdomain = typeof window !== "undefined" && window.location.hostname.includes(slug);
+      if (isSubdomain) {
+        router.push(`/${tableId}/payment?order_id=${orderId}`);
+      } else {
+        router.push(`/order/${slug}/${tableId}/payment?order_id=${orderId}`);
+      }
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Failed to place order. Please try again.");
@@ -356,7 +502,9 @@ export default function OrderMenuPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background">
         <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-muted-foreground text-sm font-medium">Loading menu...</p>
+        <p className="text-muted-foreground text-sm font-medium">
+          Loading menu...
+        </p>
       </div>
     );
   }
@@ -368,7 +516,18 @@ export default function OrderMenuPage() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-              <UtensilsCrossed className="h-5 w-5 text-primary" />
+              {tenant?.logo_url ? (
+                <Image
+                  src={tenant.logo_url || "/default-tenant-logo.png"}
+                  alt={tenant.name}
+                  width={32}
+                  height={32}
+                  className="rounded-full"
+                />
+              ) : (
+                <UtensilsCrossed className="h-8 w-8 text-primary" />
+              )}
+
               {tenant?.name || "Fruits Ordering"}
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -405,7 +564,7 @@ export default function OrderMenuPage() {
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
             />
           </div>
-          
+
           {/* Category Tabs */}
           <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             <button
@@ -414,7 +573,7 @@ export default function OrderMenuPage() {
                 "px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition-all",
                 selectedCategory === "all"
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background border-border text-muted-foreground hover:bg-muted"
+                  : "bg-background border-border text-muted-foreground hover:bg-muted",
               )}
             >
               All Fruits
@@ -427,7 +586,7 @@ export default function OrderMenuPage() {
                   "px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap border transition-all",
                   selectedCategory === cat.id
                     ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background border-border text-muted-foreground hover:bg-muted"
+                    : "bg-background border-border text-muted-foreground hover:bg-muted",
                 )}
               >
                 {cat.name}
@@ -442,7 +601,9 @@ export default function OrderMenuPage() {
             {filteredMenuItems.map((item) => {
               const images = getImages(item.image_url);
               const firstImage = images.length > 0 ? images[0] : "";
-              const cartItem = cart.find((c) => c.menuItem.id === item.id && !c.optionId);
+              const cartItem = cart.find(
+                (c) => c.menuItem.id === item.id && !c.optionId,
+              );
               const hasOptions = getOptionsForMenuItem(item).length > 0;
 
               return (
@@ -461,10 +622,12 @@ export default function OrderMenuPage() {
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-tr from-primary/10 via-secondary/15 to-accent/10 text-primary/40 p-4">
                         <ChefHat className="h-10 w-10 mb-1" />
-                        <span className="text-[10px] font-semibold text-muted-foreground">Fresh Produce</span>
+                        <span className="text-[10px] font-semibold text-muted-foreground">
+                          Fresh Produce
+                        </span>
                       </div>
                     )}
-                    
+
                     {item.category?.name && (
                       <span className="absolute top-3 left-3 bg-black/40 backdrop-blur-md text-white text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
                         {item.category.name}
@@ -485,9 +648,13 @@ export default function OrderMenuPage() {
                       </h4>
                       <div className="text-xs text-muted-foreground mt-0.5">
                         {item.stock > 0 ? (
-                          <span className="text-emerald-600 font-medium">In Stock</span>
+                          <span className="text-emerald-600 font-medium">
+                            In Stock
+                          </span>
                         ) : (
-                          <span className="text-destructive font-semibold">Out of Stock</span>
+                          <span className="text-destructive font-semibold">
+                            Out of Stock
+                          </span>
                         )}
                       </div>
                     </div>
@@ -558,7 +725,9 @@ export default function OrderMenuPage() {
         ) : (
           <div className="bg-card border border-border/60 rounded-3xl p-12 text-center max-w-md mx-auto">
             <ChefHat className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
-            <h5 className="font-bold text-foreground text-lg">No fruits found</h5>
+            <h5 className="font-bold text-foreground text-lg">
+              No fruits found
+            </h5>
             <p className="text-muted-foreground text-sm mt-1">
               Try adjusting your filters or search keywords.
             </p>
@@ -581,7 +750,9 @@ export default function OrderMenuPage() {
             <div className="p-4 border-b border-border flex items-center justify-between bg-muted/10">
               <div className="flex items-center gap-2">
                 <ShoppingBag className="h-5 w-5 text-primary" />
-                <h3 className="font-extrabold text-foreground text-base">Your Cart ({cartCount})</h3>
+                <h3 className="font-extrabold text-foreground text-base">
+                  Your Cart ({cartCount})
+                </h3>
               </div>
               <button
                 onClick={() => setIsCartOpen(false)}
@@ -598,7 +769,7 @@ export default function OrderMenuPage() {
                 cart.map((item) => {
                   const images = getImages(item.menuItem.image_url);
                   const firstImage = images.length > 0 ? images[0] : "";
-                  
+
                   return (
                     <div
                       key={item.id}
@@ -621,7 +792,9 @@ export default function OrderMenuPage() {
                       <div className="flex-1 flex flex-col justify-between">
                         <div className="flex justify-between items-start gap-2">
                           <div>
-                            <h5 className="font-bold text-foreground text-sm line-clamp-1">{item.menuItem.name}</h5>
+                            <h5 className="font-bold text-foreground text-sm line-clamp-1">
+                              {item.menuItem.name}
+                            </h5>
                             {item.optionLabel && (
                               <span className="text-[10px] font-semibold text-primary block mt-0.5">
                                 {item.optionLabel}
@@ -629,7 +802,10 @@ export default function OrderMenuPage() {
                             )}
                           </div>
                           <span className="text-sm font-extrabold text-foreground font-mono">
-                            {formatCurrency((item.menuItem.price + item.optionPriceAdd) * item.qty)}
+                            {formatCurrency(
+                              (item.menuItem.price + item.optionPriceAdd) *
+                                item.qty,
+                            )}
                           </span>
                         </div>
 
@@ -639,7 +815,9 @@ export default function OrderMenuPage() {
                             type="text"
                             placeholder="Add request (e.g. less sweet)..."
                             value={item.notes}
-                            onChange={(e) => updateItemNotes(item.id, e.target.value)}
+                            onChange={(e) =>
+                              updateItemNotes(item.id, e.target.value)
+                            }
                             className="bg-transparent border-b border-border/60 pb-0.5 text-xs text-muted-foreground flex-1 focus:outline-none focus:border-primary focus:ring-0 max-w-[150px] sm:max-w-none"
                           />
 
@@ -671,7 +849,9 @@ export default function OrderMenuPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center py-12">
                   <ShoppingBag className="h-12 w-12 text-muted-foreground/30 mb-3" />
-                  <h4 className="font-bold text-foreground">Your cart is empty</h4>
+                  <h4 className="font-bold text-foreground">
+                    Your cart is empty
+                  </h4>
                   <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">
                     Go back to the menu to add fresh organic fruits.
                   </p>
@@ -681,10 +861,66 @@ export default function OrderMenuPage() {
 
             {/* Checkout Form */}
             {cart.length > 0 && (
-              <form onSubmit={handleCheckout} className="p-4 border-t border-border space-y-4 bg-muted/15">
+              <form
+                onSubmit={handleCheckout}
+                className="p-4 border-t border-border space-y-4 bg-muted/15"
+              >
                 <div className="space-y-3">
+                  {/* Order Type Toggle */}
+                  <div className="space-y-1.5">
+                    <span className="block text-xs font-semibold text-muted-foreground">
+                      Order Option
+                    </span>
+                    <div className={cn(
+                      "grid gap-1 bg-muted/50 p-1 rounded-xl border border-border/40",
+                      tableId === "new-order" ? "grid-cols-2" : "grid-cols-3"
+                    )}>
+                      {tableId !== "new-order" && (
+                        <button
+                          type="button"
+                          onClick={() => setOrderType("dine_in")}
+                          className={cn(
+                            "py-2 text-xs font-bold rounded-lg transition-all",
+                            orderType === "dine_in"
+                              ? "bg-background text-foreground shadow-xs animate-fade-in"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          Dine In
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setOrderType("takeaway")}
+                        className={cn(
+                          "py-2 text-xs font-bold rounded-lg transition-all",
+                          orderType === "takeaway"
+                            ? "bg-background text-foreground shadow-xs animate-fade-in"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Takeaway
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrderType("delivery")}
+                        className={cn(
+                          "py-2 text-xs font-bold rounded-lg transition-all",
+                          orderType === "delivery"
+                            ? "bg-background text-foreground shadow-xs animate-fade-in"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Delivery
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
-                    <label htmlFor="customer-name" className="block text-xs font-semibold text-muted-foreground mb-1.5">
+                    <label
+                      htmlFor="customer-name"
+                      className="block text-xs font-semibold text-muted-foreground mb-1.5"
+                    >
                       Your Name <span className="text-destructive">*</span>
                     </label>
                     <input
@@ -699,7 +935,118 @@ export default function OrderMenuPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="order-notes" className="block text-xs font-semibold text-muted-foreground mb-1.5">
+                    <label
+                      htmlFor="customer-phone"
+                      className="block text-xs font-semibold text-muted-foreground mb-1.5"
+                    >
+                      Phone Number {orderType === "delivery" && <span className="text-destructive">*</span>}
+                    </label>
+                    <input
+                      id="customer-phone"
+                      type="tel"
+                      required={orderType === "delivery"}
+                      placeholder="e.g. 08123456789"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+                    />
+                  </div>
+
+                  {orderType === "delivery" && (
+                    <div className="space-y-3 p-3 bg-muted/30 border border-border/40 rounded-xl animate-in fade-in-50 duration-200">
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <label
+                            htmlFor="delivery-address"
+                            className="block text-xs font-semibold text-muted-foreground"
+                          >
+                            Delivery Address <span className="text-destructive">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleUseCurrentLocation}
+                            disabled={locatingUser || calculatingDelivery}
+                            className="text-[10px] font-bold text-primary flex items-center gap-1 hover:underline disabled:opacity-50"
+                          >
+                            {locatingUser ? (
+                              <>
+                                <div className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" />
+                                Locating...
+                              </>
+                            ) : (
+                              <>
+                                <Navigation className="h-3 w-3" />
+                                Use My Location
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <textarea
+                          id="delivery-address"
+                          rows={2}
+                          required
+                          placeholder="Enter your complete delivery address..."
+                          value={deliveryAddress}
+                          onChange={(e) => {
+                            setDeliveryAddress(e.target.value);
+                            if (deliveryDistanceKm !== null || deliveryError) {
+                              setDeliveryDistanceKm(null);
+                              setDeliveryFee(0);
+                              setDeliveryError(null);
+                            }
+                          }}
+                          className="w-full px-3 py-2 rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 text-xs resize-none"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => checkDeliveryDetails()}
+                        disabled={calculatingDelivery || !deliveryAddress.trim()}
+                        className="w-full py-2 rounded-xl bg-primary/10 text-primary border border-primary/20 text-xs font-bold hover:bg-primary/20 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {calculatingDelivery ? (
+                          <>
+                            <div className="h-3.5 w-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            Checking Distance...
+                          </>
+                        ) : (
+                          <>
+                            <MapPin className="h-3.5 w-3.5" />
+                            Calculate Delivery Fee
+                          </>
+                        )}
+                      </button>
+
+                      {deliveryDistanceKm !== null && !deliveryError && (
+                        <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 rounded-lg text-xs space-y-1">
+                          <div className="font-semibold flex items-center gap-1">
+                            <Check className="h-3.5 w-3.5" /> Address verified!
+                          </div>
+                          <div className="text-[11px] text-emerald-600/90 font-mono">
+                            Distance: {deliveryDistanceKm} km • Est: {deliveryDurationText}
+                          </div>
+                        </div>
+                      )}
+
+                      {deliveryError && (
+                        <div className="p-2.5 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg text-xs space-y-1">
+                          <div className="font-semibold flex items-center gap-1">
+                            <X className="h-3.5 w-3.5" /> Out of Delivery Range
+                          </div>
+                          <div className="text-[11px] text-destructive/90 leading-normal">
+                            {deliveryError}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <label
+                      htmlFor="order-notes"
+                      className="block text-xs font-semibold text-muted-foreground mb-1.5"
+                    >
                       Order Notes (Optional)
                     </label>
                     <textarea
@@ -719,19 +1066,31 @@ export default function OrderMenuPage() {
                     <span>Subtotal</span>
                     <span>{formatCurrency(cartTotal)}</span>
                   </div>
+                  {orderType === "delivery" && (
+                    <div className="flex justify-between text-xs text-muted-foreground animate-in slide-in-from-top-1 duration-150">
+                      <span>Delivery Fee {deliveryDistanceKm !== null && `(${deliveryDistanceKm} km)`}</span>
+                      <span>{deliveryFee > 0 ? formatCurrency(deliveryFee) : "Free / Calculating"}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Service Fee / Tax</span>
                     <span className="font-mono">Free</span>
                   </div>
                   <div className="flex justify-between text-sm font-extrabold text-foreground border-t border-border/50 pt-2">
                     <span>Total Amount</span>
-                    <span className="text-primary font-mono">{formatCurrency(cartTotal)}</span>
+                    <span className="text-primary font-mono">
+                      {formatCurrency(cartTotal + (orderType === "delivery" ? deliveryFee : 0))}
+                    </span>
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={checkoutLoading}
+                  disabled={
+                    checkoutLoading ||
+                    (orderType === "delivery" &&
+                      (deliveryDistanceKm === null || !!deliveryError || calculatingDelivery))
+                  }
                   className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-99 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {checkoutLoading ? (
@@ -765,7 +1124,9 @@ export default function OrderMenuPage() {
               </span>
               <span className="text-sm">View Basket</span>
             </div>
-            <span className="text-sm font-extrabold font-mono">{formatCurrency(cartTotal)}</span>
+            <span className="text-sm font-extrabold font-mono">
+              {formatCurrency(cartTotal)}
+            </span>
           </button>
         </div>
       )}
@@ -783,7 +1144,7 @@ export default function OrderMenuPage() {
               Customize {customizingItem?.name}
             </DialogTitle>
           </DialogHeader>
-          
+
           {customizingItem && (
             <div className="space-y-5 mt-2">
               {/* Item Image and Price */}
@@ -802,7 +1163,9 @@ export default function OrderMenuPage() {
                   )}
                 </div>
                 <div>
-                  <div className="font-bold text-foreground">{customizingItem.name}</div>
+                  <div className="font-bold text-foreground">
+                    {customizingItem.name}
+                  </div>
                   <div className="text-sm font-semibold text-muted-foreground mt-0.5">
                     Base: {formatCurrency(customizingItem.price)}
                   </div>
@@ -825,7 +1188,7 @@ export default function OrderMenuPage() {
                           "flex justify-between items-center p-3 rounded-xl border-2 cursor-pointer transition-all duration-200",
                           isSelected
                             ? "border-primary bg-primary/5 shadow-xs"
-                            : "border-border/60 bg-card hover:bg-muted/30"
+                            : "border-border/60 bg-card hover:bg-muted/30",
                         )}
                       >
                         <div>
@@ -847,7 +1210,7 @@ export default function OrderMenuPage() {
                               "h-4 w-4 rounded-full border flex items-center justify-center",
                               isSelected
                                 ? "border-primary bg-primary text-primary-foreground"
-                                : "border-muted-foreground/30"
+                                : "border-muted-foreground/30",
                             )}
                           >
                             {isSelected && <Check className="h-2.5 w-2.5" />}
@@ -868,7 +1231,9 @@ export default function OrderMenuPage() {
                   <div className="flex items-center gap-3 bg-muted px-3 py-1.5 rounded-lg">
                     <button
                       type="button"
-                      onClick={() => setCustomizingQty((q) => Math.max(1, q - 1))}
+                      onClick={() =>
+                        setCustomizingQty((q) => Math.max(1, q - 1))
+                      }
                       className="hover:scale-110 active:scale-95 text-foreground hover:bg-transparent"
                     >
                       <Minus className="h-3.5 w-3.5" />
@@ -878,7 +1243,11 @@ export default function OrderMenuPage() {
                     </span>
                     <button
                       type="button"
-                      onClick={() => setCustomizingQty((q) => Math.min(customizingItem.stock, q + 1))}
+                      onClick={() =>
+                        setCustomizingQty((q) =>
+                          Math.min(customizingItem.stock, q + 1),
+                        )
+                      }
                       className="hover:scale-110 active:scale-95 text-foreground hover:bg-transparent"
                     >
                       <Plus className="h-3.5 w-3.5" />
@@ -909,18 +1278,26 @@ export default function OrderMenuPage() {
                     return;
                   }
                   const options = getOptionsForMenuItem(customizingItem);
-                  const selectedOpt = options.find((o) => o.id === selectedOptionId);
+                  const selectedOpt = options.find(
+                    (o) => o.id === selectedOptionId,
+                  );
                   if (!selectedOpt) return;
 
                   // Add customizingQty times to cart
                   const cartItemId = `${customizingItem.id}_${selectedOptionId}`;
                   setCart((prev) => {
-                    const existing = prev.find((item) => item.id === cartItemId);
+                    const existing = prev.find(
+                      (item) => item.id === cartItemId,
+                    );
                     if (existing) {
                       return prev.map((item) =>
                         item.id === cartItemId
-                          ? { ...item, qty: item.qty + customizingQty, notes: customizingNotes || item.notes }
-                          : item
+                          ? {
+                              ...item,
+                              qty: item.qty + customizingQty,
+                              notes: customizingNotes || item.notes,
+                            }
+                          : item,
                       );
                     }
                     return [
@@ -938,7 +1315,7 @@ export default function OrderMenuPage() {
                   });
 
                   toast.success(
-                    `${customizingItem.name} (${selectedOpt.variantName}: ${selectedOpt.label}) added to cart!`
+                    `${customizingItem.name} (${selectedOpt.variantName}: ${selectedOpt.label}) added to cart!`,
                   );
                   setCustomizingItem(null);
                 }}
@@ -950,9 +1327,10 @@ export default function OrderMenuPage() {
                 <span className="font-mono">
                   {formatCurrency(
                     (customizingItem.price +
-                      (getOptionsForMenuItem(customizingItem).find((o) => o.id === selectedOptionId)
-                        ?.price_add || 0)) *
-                      customizingQty
+                      (getOptionsForMenuItem(customizingItem).find(
+                        (o) => o.id === selectedOptionId,
+                      )?.price_add || 0)) *
+                      customizingQty,
                   )}
                 </span>
               </button>

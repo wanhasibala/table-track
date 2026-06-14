@@ -281,6 +281,10 @@ export type Database = {
           created_at: string
           customer_name: string | null
           customer_phone: string | null
+          delivery_address: string | null
+          delivery_fee: number
+          delivery_latitude: number | null
+          delivery_longitude: number | null
           handled_by: string | null
           id: string
           notes: string | null
@@ -294,6 +298,10 @@ export type Database = {
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
+          delivery_address?: string | null
+          delivery_fee?: number
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
           handled_by?: string | null
           id?: string
           notes?: string | null
@@ -307,6 +315,10 @@ export type Database = {
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
+          delivery_address?: string | null
+          delivery_fee?: number
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
           handled_by?: string | null
           id?: string
           notes?: string | null

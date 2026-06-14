@@ -308,6 +308,14 @@ export const OrderForm = ({
         .insert(itemsToInsert);
       if (insertError) throw insertError;
 
+      // Automatically mark associated payments as paid if order is confirmed or completed
+      if (status === "confirmed" || status === "completed") {
+        await supabase
+          .from("payment")
+          .update({ status: "paid", paid_at: new Date().toISOString() })
+          .eq("order_id", orderId);
+      }
+
       toast.success(isNew ? "Order created successfully" : "Order updated successfully");
       if (onSuccess) onSuccess();
     } catch (err: any) {
