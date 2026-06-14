@@ -126,13 +126,18 @@ export default function OrderMenuPage() {
         if (tenantError) throw tenantError;
         setTenant(tenantData);
 
-        // 2. Fetch Table Spot
-        const { data: tableData } = await supabase
-          .from("table_spot")
-          .select("*")
-          .eq("id", tableId)
-          .single();
-        setTableSpot(tableData);
+        // 2. Fetch Table Spot (only if tableId is a valid UUID and not "new-order")
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tableId);
+        if (tableId && tableId !== "new-order" && isUuid) {
+          const { data: tableData } = await supabase
+            .from("table_spot")
+            .select("*")
+            .eq("id", tableId)
+            .single();
+          setTableSpot(tableData);
+        } else {
+          setTableSpot(null);
+        }
 
         // 3. Fetch Categories
         const { data: catData } = await supabase
@@ -299,7 +304,7 @@ export default function OrderMenuPage() {
       const supabase = createClient();
 
       const orderBody = {
-        table_id: tableId || null,
+        table_id: (tableId && tableId !== "new-order") ? tableId : null,
         status: "pending" as const,
         notes: `${customerName.trim()}'s Online Order. Notes: ${orderNotes.trim() || "None"}`,
         total_amount: cartTotal,
