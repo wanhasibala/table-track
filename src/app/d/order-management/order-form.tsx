@@ -100,7 +100,7 @@ export const OrderForm = ({
   // 2. Load Order Details & Items (if editing)
   useEffect(() => {
     const loadOrderData = async () => {
-      if (isNew) {
+      if (isNew || !id) {
         setLoading(false);
         return;
       }

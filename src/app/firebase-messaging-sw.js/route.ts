@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "";
-  const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "";
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "";
-  const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "";
-  const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "";
-  const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "";
+  const clean = (val: string) => val.replace(/^["']|["']$/g, "").trim();
+
+  const apiKey = clean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "");
+  const authDomain = clean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "");
+  const projectId = clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "");
+  const storageBucket = clean(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "");
+  const messagingSenderId = clean(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "");
+  const appId = clean(process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "");
 
   const script = `
     importScripts('https://www.gstatic.com/firebasejs/9.24.0/firebase-app-compat.js');
@@ -21,18 +23,22 @@ export async function GET() {
       appId: "${appId}"
     });
 
-    const messaging = firebase.messaging();
+    if (firebase.messaging.isSupported()) {
+      const messaging = firebase.messaging();
 
-    messaging.onBackgroundMessage((payload) => {
-      console.log('[firebase-messaging-sw.js] Received background message ', payload);
-      const notificationTitle = payload.notification?.title || 'TableTrack Update';
-      const notificationOptions = {
-        body: payload.notification?.body || 'Your order status has changed.',
-        icon: '/icon.svg',
-        data: payload.data
-      };
-      self.registration.showNotification(notificationTitle, notificationOptions);
-    });
+      messaging.onBackgroundMessage((payload) => {
+        console.log('[firebase-messaging-sw.js] Received background message ', payload);
+        const notificationTitle = payload.notification?.title || 'TableTrack Update';
+        const notificationOptions = {
+          body: payload.notification?.body || 'Your order status has changed.',
+          icon: '/icon.svg',
+          data: payload.data
+        };
+        self.registration.showNotification(notificationTitle, notificationOptions);
+      });
+    } else {
+      console.warn("Firebase Messaging is not supported in this service worker context.");
+    }
   `;
 
   return new NextResponse(script, {
