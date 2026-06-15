@@ -1,7 +1,7 @@
 "use client";
 import { AdvancedTable } from "@/components/ui/data-table/advanced-table";
 import { orderColumns } from "./order";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { OrderForm } from "./order-form";
 import { useGetResourceQuery } from "@/store/services/flexible-querry";
@@ -23,17 +23,27 @@ const Page = () => {
     id: "",
   });
 
-  const { data, isLoading, refetch } = useGetResourceQuery({
-    resource: "order_table",
-    params: {
-      select: "*, table_spot(name), user_account(name)",
-      order: "desc",
-      sort: "created_at",
-    },
-  });
-
   const [filters, setFilters] = useState<Record<string, any>>({
     date: "today",
+  });
+
+  const queryParams = useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    return {
+      select: "*, table_spot(name), user_account(name)",
+      order: "desc" as const,
+      sort: "created_at" as const,
+      ...(filters.date === "today"
+        ? { created_at_gte: startOfToday.toISOString() }
+        : {}),
+    };
+  }, [filters.date]);
+
+  const { data, isLoading, refetch } = useGetResourceQuery({
+    resource: "order_table",
+    params: queryParams,
   });
 
   useEffect(() => {
@@ -64,25 +74,14 @@ const Page = () => {
     return <div className="p-4 text-center">Loading orders...</div>;
   }
 
-  const filteredData = (data?.data || []).filter((order) => {
-    if (filters.date === "today") {
-      const orderDate = new Date(order.created_at);
-      const today = new Date();
-      return (
-        orderDate.getDate() === today.getDate() &&
-        orderDate.getMonth() === today.getMonth() &&
-        orderDate.getFullYear() === today.getFullYear()
-      );
-    }
-    return true;
-  });
+
 
   return (
     <>
       <h3 className="text-xl font-semibold mb-4">Order Management</h3>
       <AdvancedTable
         columns={columns}
-        data={filteredData}
+        data={data?.data || []}
         filterConfig={[
           {
             label: "Date",

@@ -18,7 +18,9 @@ type QueryParams<T extends TableName> = {
 } & {
   sort?: keyof Row<T> & string;
   order?: "asc" | "desc";
-  select?: string; // 👈 Add this line
+  select?: string;
+} & {
+  [key: string]: any;
 };
 
 interface ResourceQueryArgs<T extends TableName = TableName> {
@@ -62,7 +64,19 @@ export const api = createApi({
             // 2. Make sure we skip 'select' so it doesn't get treated as an equality filter
             if (key === "sort" || key === "order" || key === "select") return;
 
-            if (Array.isArray(value)) {
+            if (key.endsWith("_gte")) {
+              const column = key.replace("_gte", "");
+              query = query.gte(column, value);
+            } else if (key.endsWith("_lte")) {
+              const column = key.replace("_lte", "");
+              query = query.lte(column, value);
+            } else if (key.endsWith("_gt")) {
+              const column = key.replace("_gt", "");
+              query = query.gt(column, value);
+            } else if (key.endsWith("_lt")) {
+              const column = key.replace("_lt", "");
+              query = query.lt(column, value);
+            } else if (Array.isArray(value)) {
               query = query.in(key, value);
             } else {
               query = query.eq(key, value);
