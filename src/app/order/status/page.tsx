@@ -42,6 +42,7 @@ export default function OrderStatusPage() {
 
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [currentStatus, setCurrentStatus] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   const { permission, registerToken, loading: pushLoading } = usePushNotifications();
@@ -71,6 +72,7 @@ export default function OrderStatusPage() {
           .single();
         if (orderError) throw orderError;
         setOrder(orderData);
+        setCurrentStatus((prev) => prev || orderData.status);
 
         const { data: itemsData } = await supabase
           .from("order_item")
@@ -96,14 +98,11 @@ export default function OrderStatusPage() {
       onValue(rtdbOrderRef, (snapshot) => {
         const data = snapshot.val();
         if (data && data.status) {
-          setOrder((prev: any) => {
-            if (prev && prev.status !== data.status) {
+          setCurrentStatus((prevStatus) => {
+            if (prevStatus && prevStatus !== data.status) {
               toast.success(`Order status updated: ${data.status.toUpperCase()}`);
             }
-            return {
-              ...prev,
-              status: data.status,
-            };
+            return data.status;
           });
         }
       });
@@ -143,9 +142,9 @@ export default function OrderStatusPage() {
     );
   }
 
-  const currentStatusIndex = statusSteps.findIndex(s => s.key === order.status);
-  const isCancelled = order.status === "cancelled";
-
+  const currentStatusIndex = statusSteps.findIndex(s => s.key === currentStatus);
+  const isCancelled = currentStatus === "cancelled";
+ 
   return (
     <div className="min-h-screen bg-muted/20 pb-16 text-foreground">
       {/* Header */}
@@ -163,7 +162,7 @@ export default function OrderStatusPage() {
           </span>
         </div>
       </header>
-
+ 
       {/* Main content wrapper */}
       <main className="max-w-xl mx-auto px-4 py-6 space-y-6">
         {/* Status Card */}
@@ -195,11 +194,11 @@ export default function OrderStatusPage() {
               "text-xs px-3 py-1 rounded-full font-bold border capitalize shadow-sm",
               isCancelled 
                 ? "bg-destructive/10 text-destructive border-destructive/20" 
-                : order.status === "completed"
+                : currentStatus === "completed"
                   ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                   : "bg-primary/10 text-primary border-primary/20 animate-pulse"
             )}>
-              {order.status}
+              {currentStatus}
             </span>
           </div>
 
