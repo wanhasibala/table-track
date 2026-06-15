@@ -248,6 +248,7 @@ export const OrderForm = ({
   // Submit Operations
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("OrderForm: handleSubmit called");
     if (items.length === 0) {
       toast.error("Please add at least one item to the order.");
       return;
@@ -355,6 +356,10 @@ export const OrderForm = ({
 
       // Sync status to Firebase Realtime Database
       try {
+        console.log("OrderForm: Calling sync endpoint with payload:", {
+          orderId,
+          status,
+        });
         const syncResponse = await fetch("/api/order/sync", {
           method: "POST",
           headers: {
