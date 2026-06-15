@@ -92,11 +92,25 @@ export default function OrderStatusPage() {
     // 2. Real-time Subscription to Firebase RTDB updates
     const db = getFirebaseDb();
     let rtdbOrderRef: any = null;
+    let rtdbConnectedRef: any = null;
 
     if (db) {
+      console.log("Firebase RTDB client URL:", db.app.options.databaseURL);
+
+      // Listen for connection state
+      rtdbConnectedRef = ref(db, ".info/connected");
+      onValue(rtdbConnectedRef, (snap) => {
+        if (snap.val() === true) {
+          console.log("Firebase RTDB client: Connected successfully!");
+        } else {
+          console.warn("Firebase RTDB client: Disconnected / Attempting to connect...");
+        }
+      });
+
       rtdbOrderRef = ref(db, `orders/${orderId}`);
       onValue(rtdbOrderRef, (snapshot) => {
         const data = snapshot.val();
+        console.log("Firebase RTDB order snapshot received:", data);
         if (data && data.status) {
           setCurrentStatus((prevStatus) => {
             if (prevStatus && prevStatus !== data.status) {
@@ -111,6 +125,9 @@ export default function OrderStatusPage() {
     return () => {
       if (rtdbOrderRef) {
         off(rtdbOrderRef);
+      }
+      if (rtdbConnectedRef) {
+        off(rtdbConnectedRef);
       }
     };
   }, [orderId]);
