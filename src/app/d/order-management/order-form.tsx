@@ -353,6 +353,19 @@ export const OrderForm = ({
         }).catch((err) => console.error("Failed to send push notification:", err));
       }
 
+      // Sync status to Firebase Realtime Database
+      fetch("/api/order/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orderId,
+          status,
+          paymentStatus: (status === "confirmed" || status === "completed") ? "paid" : undefined,
+        }),
+      }).catch((err) => console.error("Failed to sync order to RTDB:", err));
+
       toast.success(isNew ? "Order created successfully" : "Order updated successfully");
       if (onSuccess) onSuccess();
     } catch (err: any) {

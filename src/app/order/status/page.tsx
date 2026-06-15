@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { getFirebaseDb } from "@/utils/firebase";
+import { ref, onValue, off } from "firebase/database";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -85,29 +87,32 @@ export default function OrderStatusPage() {
 
     loadOrderData();
 
-    // 2. Real-time Subscription to Order updates
-    const channel = supabase
-      .channel(`order-status-${orderId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "order_table",
-          filter: `id=eq.${orderId}`,
-        },
-        (payload) => {
-          setOrder((prev: any) => ({
-            ...prev,
-            ...payload.new,
-          }));
-          toast.success(`Order status updated: ${payload.new.status.toUpperCase()}`);
+    // 2. Real-time Subscription to Firebase RTDB updates
+    const db = getFirebaseDb();
+    let rtdbOrderRef: any = null;
+
+    if (db) {
+      rtdbOrderRef = ref(db, `orders/${orderId}`);
+      onValue(rtdbOrderRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.status) {
+          setOrder((prev: any) => {
+            if (prev && prev.status !== data.status) {
+              toast.success(`Order status updated: ${data.status.toUpperCase()}`);
+            }
+            return {
+              ...prev,
+              status: data.status,
+            };
+          });
         }
-      )
-      .subscribe();
+      });
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (rtdbOrderRef) {
+        off(rtdbOrderRef);
+      }
     };
   }, [orderId]);
 

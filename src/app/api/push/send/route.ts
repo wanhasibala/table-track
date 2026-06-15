@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { initFirebaseAdmin } from "@/utils/firebase-admin";
 import { getMessaging } from "firebase-admin/messaging";
-
-import fs from "fs";
-import path from "path";
 
 const getAdminSupabase = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,48 +14,6 @@ const getAdminSupabase = () => {
       }
     });
   }
-  return null;
-};
-
-const initFirebaseAdmin = () => {
-  const apps = getApps();
-  if (apps.length > 0) {
-    return apps[0];
-  }
-
-  // 1. Try to load config from the local JSON file
-  try {
-    const jsonPath = path.join(process.cwd(), "tabletrack-b8155-5316df108b91.json");
-    if (fs.existsSync(jsonPath)) {
-      const credentials = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
-      return initializeApp({
-        credential: cert(credentials),
-      });
-    }
-  } catch (err) {
-    console.error("Failed to load Firebase credentials from JSON file:", err);
-  }
-
-  // 2. Fallback to env variables
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
-  if (projectId && clientEmail && privateKey) {
-    try {
-      return initializeApp({
-        credential: cert({
-          projectId,
-          clientEmail,
-          privateKey,
-        }),
-      });
-    } catch (e) {
-      console.error("Failed to initialize Firebase Admin from env:", e);
-    }
-  }
-
-  console.warn("Firebase Admin SDK credentials missing. Push notifications will be printed to console.");
   return null;
 };
 

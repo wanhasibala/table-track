@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFileUpload } from "@/hooks/use-file-upload";
+import { getFirebaseDb } from "@/utils/firebase";
+import { ref, onValue, off } from "firebase/database";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -168,69 +170,61 @@ export default function PaymentPage() {
 
     loadData();
 
-    // 4. Real-time Subscription to Order and Payment updates
-    const orderChannel = supabase
-      .channel(`payment-status-${orderId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "order_table",
-          filter: `id=eq.${orderId}`,
-        },
-        (payload) => {
-          setOrder((prev: any) => {
-            const nextOrder = { ...prev, ...payload.new };
-            if (nextOrder.status !== "pending" && nextOrder.status !== "cancelled") {
-              toast.success("Payment confirmed by Cashier!");
-              setTimeout(() => {
-                const orderSlug = nextOrder?.tenant?.slug || "";
-                const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
-                if (currentIsSubdomain) {
-                  router.push(`/status?order_id=${orderId}`);
-                } else {
-                  router.push(`/order/status?order_id=${orderId}`);
-                }
-              }, 50);
-            }
-            return nextOrder;
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "payment",
-          filter: `order_id=eq.${orderId}`,
-        },
-        (payload: any) => {
-          const newPay = payload.new || payload.old;
-          if (newPay) {
-            setPaymentRecord(newPay);
-            if (newPay.status === "paid") {
-              toast.success("Payment verified successfully!");
-              setTimeout(() => {
-                const orderSlug = order?.tenant?.slug || "";
-                const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
-                if (currentIsSubdomain) {
-                  router.push(`/status?order_id=${orderId}`);
-                } else {
-                  router.push(`/order/status?order_id=${orderId}`);
-                }
-              }, 50);
-            }
+    // 4. Real-time Subscription to Firebase RTDB updates
+    const db = getFirebaseDb();
+    let rtdbOrderRef: any = null;
+
+    if (db) {
+      rtdbOrderRef = ref(db, `orders/${orderId}`);
+      onValue(rtdbOrderRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          if (data.status) {
+            setOrder((prev: any) => {
+              const nextOrder = { ...prev, status: data.status };
+              if (data.status !== "pending" && data.status !== "cancelled") {
+                toast.success("Payment confirmed by Cashier!");
+                setTimeout(() => {
+                  const orderSlug = nextOrder?.tenant?.slug || "";
+                  const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
+                  if (currentIsSubdomain) {
+                    router.push(`/status?order_id=${orderId}`);
+                  } else {
+                    router.push(`/order/status?order_id=${orderId}`);
+                  }
+                }, 50);
+              }
+              return nextOrder;
+            });
+          }
+          if (data.paymentStatus) {
+            setPaymentRecord((prev: any) => {
+              const nextPay = { ...prev, status: data.paymentStatus };
+              if (data.paymentStatus === "paid") {
+                toast.success("Payment verified successfully!");
+                setTimeout(() => {
+                  const orderSlug = order?.tenant?.slug || "";
+                  const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
+                  if (currentIsSubdomain) {
+                    router.push(`/status?order_id=${orderId}`);
+                  } else {
+                    router.push(`/order/status?order_id=${orderId}`);
+                  }
+                }, 50);
+              }
+              return nextPay;
+            });
           }
         }
-      )
-      .subscribe();
+      });
+    }
 
     return () => {
-      supabase.removeChannel(orderChannel);
+      if (rtdbOrderRef) {
+        off(rtdbOrderRef);
+      }
     };
-  }, [orderId, order]);
+  }, [orderId, order, isSubdomain]);
 
   // QRIS Countdown Timer
   useEffect(() => {
@@ -284,6 +278,14 @@ export default function PaymentPage() {
 
       if (error) throw error;
       setPaymentRecord(data);
+
+      // Sync payment pending to Firebase RTDB in background
+      fetch("/api/order/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, paymentStatus: "pending" })
+      }).catch(err => console.error("Failed to sync payment status to RTDB:", err));
+
       toast.dismiss(loadingToast);
       toast.success("Payment submitted for cashier verification!");
     } catch (e: any) {
