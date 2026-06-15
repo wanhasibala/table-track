@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getFcmToken } from "@/utils/firebase";
+import { toast } from "sonner";
 
 export function usePushNotifications() {
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
@@ -42,10 +43,22 @@ export function usePushNotifications() {
           throw new Error(data.message || "Failed to register push token");
         }
         console.log("Push token registered successfully:", fcmToken);
+        toast.success("Order alerts enabled successfully! 🔔");
         return fcmToken;
+      } else {
+        const isBrave = (navigator as any).brave !== undefined;
+        if (isBrave) {
+          toast.error(
+            "Push alerts failed. On Brave, please go to brave://settings/privacy and enable 'Use Google services for push messaging', then refresh.",
+            { duration: 8000 }
+          );
+        } else {
+          toast.error("Could not enable push alerts. Please verify browser notification permissions.");
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to register for push notifications:", error);
+      toast.error(`Push alert setup failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
