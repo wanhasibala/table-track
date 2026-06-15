@@ -316,6 +316,43 @@ export const OrderForm = ({
           .eq("order_id", orderId);
       }
 
+      // Trigger push notification to the customer
+      if (!isNew) {
+        const getNotificationTitle = (statusStr: string) => {
+          switch (statusStr) {
+            case "confirmed": return "Order Confirmed! 🍊";
+            case "preparing": return "Preparing Your Order 🔪";
+            case "served": return "Order Served! 🍽️";
+            case "completed": return "Order Completed! ✨";
+            case "cancelled": return "Order Cancelled 🛑";
+            default: return "Order Status Updated 🔔";
+          }
+        };
+
+        const getNotificationBody = (statusStr: string) => {
+          switch (statusStr) {
+            case "confirmed": return "Your order has been accepted and is being processed.";
+            case "preparing": return "The kitchen is now preparing your fresh fruits.";
+            case "served": return "Your order has been served to your table. Enjoy!";
+            case "completed": return "Your bill has been settled. Thank you for dining with us!";
+            case "cancelled": return "Your order has been cancelled. Please check with staff.";
+            default: return `Your order status has changed to: ${statusStr}.`;
+          }
+        };
+
+        fetch("/api/push/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            orderId,
+            title: getNotificationTitle(status),
+            body: getNotificationBody(status),
+          }),
+        }).catch((err) => console.error("Failed to send push notification:", err));
+      }
+
       toast.success(isNew ? "Order created successfully" : "Order updated successfully");
       if (onSuccess) onSuccess();
     } catch (err: any) {

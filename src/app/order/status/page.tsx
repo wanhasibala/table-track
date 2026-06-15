@@ -15,6 +15,7 @@ import {
   ShoppingBag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -40,6 +41,8 @@ export default function OrderStatusPage() {
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const { permission, registerToken, loading: pushLoading } = usePushNotifications();
 
   const slug = order?.tenant?.slug || "";
   const tableId = order?.table_id || "new-order";
@@ -240,6 +243,31 @@ export default function OrderStatusPage() {
             </div>
           )}
         </div>
+
+        {/* Push Notification Promo Banner */}
+        {permission !== "granted" && permission !== "unsupported" && (
+          <div className="bg-card rounded-2xl border border-border/80 p-5 shadow-sm space-y-3 flex items-center justify-between gap-4 animate-in fade-in duration-300">
+            <div className="space-y-1">
+              <h4 className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
+                🔔 Enable Order Alerts
+              </h4>
+              <p className="text-xs text-muted-foreground leading-normal max-w-[280px]">
+                Get instant notifications on your device when your fruits are being prepared or served.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (orderId) {
+                  registerToken({ orderId });
+                }
+              }}
+              disabled={pushLoading}
+              className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl shadow-md hover:bg-primary/95 transition-all flex-shrink-0 disabled:opacity-50"
+            >
+              {pushLoading ? "Enabling..." : "Enable"}
+            </button>
+          </div>
+        )}
 
         {/* Bill Summary */}
         <div className="bg-card rounded-2xl border border-border/80 shadow-md p-6">
