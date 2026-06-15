@@ -16,7 +16,7 @@ import {
   MapPin,
   Navigation,
 } from "lucide-react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -89,8 +89,9 @@ const getImages = (imageUrl: any): string[] => {
 export default function OrderMenuPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const tableId = params.tableId as string;
+  const tableId = (searchParams.get("tableId") || searchParams.get("table_id") || "new-order") as string;
 
   const [tenant, setTenant] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);

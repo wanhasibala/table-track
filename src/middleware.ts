@@ -51,18 +51,24 @@ export function middleware(request: NextRequest) {
         return NextResponse.rewrite(url);
       }
 
-      // Split pathname: e.g. "/table-1/status" -> ["table-1", "status"]
+      // Split pathname: e.g. "/table-1/cart" -> ["table-1", "cart"]
       const pathParts = pathname.split("/").filter(Boolean);
+      
+      if (pathParts.length === 0) {
+        url.pathname = `/order/${subdomain}`;
+        return NextResponse.rewrite(url);
+      }
       
       if (pathParts.length > 0) {
         const tableId = pathParts[0];
-        const subPage = pathParts[1] || ""; // e.g. "status"
+        const subPage = pathParts[1] || "";
         
         if (subPage) {
-          url.pathname = `/order/${subdomain}/${tableId}/${subPage}`;
+          url.pathname = `/order/${subdomain}/${subPage}`;
         } else {
-          url.pathname = `/order/${subdomain}/${tableId}`;
+          url.pathname = `/order/${subdomain}`;
         }
+        url.searchParams.set("tableId", tableId);
         
         return NextResponse.rewrite(url);
       }
