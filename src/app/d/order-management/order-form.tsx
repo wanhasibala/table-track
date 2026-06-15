@@ -354,17 +354,28 @@ export const OrderForm = ({
       }
 
       // Sync status to Firebase Realtime Database
-      fetch("/api/order/sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          orderId,
-          status,
-          paymentStatus: (status === "confirmed" || status === "completed") ? "paid" : undefined,
-        }),
-      }).catch((err) => console.error("Failed to sync order to RTDB:", err));
+      try {
+        const syncResponse = await fetch("/api/order/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            orderId,
+            status,
+            paymentStatus: (status === "confirmed" || status === "completed") ? "paid" : undefined,
+          }),
+        });
+
+        if (!syncResponse.ok) {
+          const errData = await syncResponse.json().catch(() => ({}));
+          console.error("RTDB Sync failed:", errData);
+          toast.error(`RTDB Sync failed: ${errData.message || syncResponse.statusText}`);
+        }
+      } catch (err: any) {
+        console.error("Failed to sync order to RTDB:", err);
+        toast.error(`Failed to sync to RTDB: ${err.message}`);
+      }
 
       toast.success(isNew ? "Order created successfully" : "Order updated successfully");
       if (onSuccess) onSuccess();
