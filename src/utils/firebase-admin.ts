@@ -54,8 +54,14 @@ export const syncOrderToRtdb = async (
 
     const db = getDatabase(adminApp);
     const orderRef = db.ref(`orders/${orderId}`);
+
+    // Filter out undefined values to avoid Firebase Admin SDK throwing an error
+    const cleanData = Object.fromEntries(
+      Object.entries(updateData).filter(([_, v]) => v !== undefined)
+    );
+
     await orderRef.update({
-      ...updateData,
+      ...cleanData,
       updatedAt: new Date().toISOString(),
     });
     return true;
