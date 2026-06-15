@@ -18,8 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFileUpload } from "@/hooks/use-file-upload";
-import { getFirebaseDb } from "@/utils/firebase";
-import { ref, onValue, off } from "firebase/database";
+
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -170,22 +169,26 @@ export default function PaymentPage() {
 
     loadData();
 
-    // 4. Real-time Subscription to Firebase RTDB updates
-    const db = getFirebaseDb();
-    let rtdbOrderRef: any = null;
-
-    if (db) {
-      rtdbOrderRef = ref(db, `orders/${orderId}`);
-      onValue(rtdbOrderRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          if (data.status) {
+    // 4. Real-time Subscription to Supabase updates
+    const orderChannel = supabase
+      .channel(`order-update-${orderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "order_table",
+          filter: `id=eq.${orderId}`,
+        },
+        (payload) => {
+          const nextOrder = payload.new as any;
+          if (nextOrder && nextOrder.status) {
             setOrder((prev: any) => {
-              const nextOrder = { ...prev, status: data.status };
-              if (data.status !== "pending" && data.status !== "cancelled") {
+              const updatedOrder = { ...prev, status: nextOrder.status };
+              if (nextOrder.status !== "pending" && nextOrder.status !== "cancelled") {
                 toast.success("Payment confirmed by Cashier!");
                 setTimeout(() => {
-                  const orderSlug = nextOrder?.tenant?.slug || "";
+                  const orderSlug = updatedOrder?.tenant?.slug || "";
                   const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
                   if (currentIsSubdomain) {
                     router.push(`/status?order_id=${orderId}`);
@@ -194,13 +197,29 @@ export default function PaymentPage() {
                   }
                 }, 50);
               }
-              return nextOrder;
+              return updatedOrder;
             });
           }
-          if (data.paymentStatus) {
+        }
+      )
+      .subscribe();
+
+    const paymentChannel = supabase
+      .channel(`payment-update-${orderId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "payment",
+          filter: `order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          const nextPay = payload.new as any;
+          if (nextPay && nextPay.status) {
             setPaymentRecord((prev: any) => {
-              const nextPay = { ...prev, status: data.paymentStatus };
-              if (data.paymentStatus === "paid") {
+              const updatedPay = { ...prev, status: nextPay.status };
+              if (nextPay.status === "paid") {
                 toast.success("Payment verified successfully!");
                 setTimeout(() => {
                   const orderSlug = order?.tenant?.slug || "";
@@ -212,17 +231,16 @@ export default function PaymentPage() {
                   }
                 }, 50);
               }
-              return nextPay;
+              return updatedPay;
             });
           }
         }
-      });
-    }
+      )
+      .subscribe();
 
     return () => {
-      if (rtdbOrderRef) {
-        off(rtdbOrderRef);
-      }
+      supabase.removeChannel(orderChannel);
+      supabase.removeChannel(paymentChannel);
     };
   }, [orderId, order, isSubdomain]);
 
@@ -279,12 +297,7 @@ export default function PaymentPage() {
       if (error) throw error;
       setPaymentRecord(data);
 
-      // Sync payment pending to Firebase RTDB in background
-      fetch("/api/order/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, paymentStatus: "pending" })
-      }).catch(err => console.error("Failed to sync payment status to RTDB:", err));
+
 
       toast.dismiss(loadingToast);
       toast.success("Payment submitted for cashier verification!");
