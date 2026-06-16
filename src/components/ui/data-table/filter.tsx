@@ -36,7 +36,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { useTranslation } from "@/lib/use-translation";
 import {
   AsyncCombobox,
   type AsyncComboboxOption,
@@ -92,7 +91,6 @@ export function TableFilter({
   loadOptions,
   debounceMs = 300,
 }: FilterProps) {
-  const { t } = useTranslation();
   if (type === "warehouse") {
     // Get current option index
     const currentIndex = options.findIndex((option) => option.value === value);
@@ -133,13 +131,10 @@ export function TableFilter({
           <PopoverContent>
             <Command>
               <CommandInput
-                placeholder={`${t(
-                  "table.filter.search",
-                )} ${label.toLowerCase()}...`}
+                placeholder={`Search ${label.toLowerCase()}...`}
               />
               <CommandEmpty>
-                {t("table.filter.empty")} {label.toLowerCase()}{" "}
-                {t("table.filter.found")}.
+                No {label.toLowerCase()} found.
               </CommandEmpty>
               <CommandGroup>
                 {options?.map((option) => (
@@ -258,20 +253,17 @@ export function TableFilter({
           >
             {value
               ? options.find((option) => option.value === value)?.label
-              : `${t("table.filter.dropdown")} ${label.toLowerCase()}`}
+              : `Select ${label.toLowerCase()}`}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-0">
           <Command>
             <CommandInput
-              placeholder={`${t(
-                "table.filter.search",
-              )} ${label.toLowerCase()}...`}
+              placeholder={`Search ${label.toLowerCase()}...`}
             />
             <CommandEmpty>
-              {t("table.filter.empty")} {label.toLowerCase()}{" "}
-              {t("table.filter.found")}.
+              No {label.toLowerCase()} found.
             </CommandEmpty>
             <CommandGroup>
               {options?.map((option) => (
@@ -386,7 +378,7 @@ export function TableFilter({
     <div className="relative w-full ">
       <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
       <Input
-        placeholder={`${t("table.filter.search")} ${label.toLowerCase()}`}
+        placeholder={`Search ${label.toLowerCase()}...`}
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         className="h-10 pl-8 pr-8 rounded-sm"

@@ -35,9 +35,8 @@ export default function LoginPage() {
   async function handleSubmit(data: Record<string, any>) {
     const { email, password } = data;
 
-    const { data:signinData, error: signinError, } = await supabase.auth.signInWithPassword(
-      { email, password },
-    );
+    const { data: signinData, error: signinError } =
+      await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
 
     if (signinError) {
@@ -61,13 +60,13 @@ export default function LoginPage() {
           email: account?.email || signinData.user.email,
           name: account?.name || account?.email || signinData.user.email,
           tenant_id: account?.tenant_id,
-        })
+        }),
       );
       localStorage.setItem(
         "role",
         JSON.stringify({
           name: account?.role || "User",
-        })
+        }),
       );
     }
 
@@ -101,46 +100,12 @@ export default function LoginPage() {
               submitButtonPosition="bottom"
               submitClassname="w-full"
             />
-            {/* <form onSubmit={handleSubmit} className="w-full">
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="email">Email</FieldLabel>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </Field>
-                <Field>
-                  <div className="flex items-center">
-                    <FieldLabel htmlFor="password">Password</FieldLabel>
-                    <a
-                      href="#"
-                      className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                    >
-                      Forgot your password?
-                    </a>
-                  </div>
-                  <Input
-                    id="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </Field>
-                <Field>
-                  <Button type="submit">Login</Button>
-                  <FieldDescription className="text-center text-sm">
-                    Don&apos;t have an account?{" "}
-                    <a href="/auth/register">Sign up</a>
-                  </FieldDescription>
-                </Field>
-              </FieldGroup>
-            </form> */}
+            <FieldDescription className="text-center text-sm mt-2">
+              Don't have an account?{" "}
+              <Link href="/auth/register" className="underline hover:text-primary">
+                Register
+              </Link>
+            </FieldDescription>
           </CardContent>
         </Card>
       </div>

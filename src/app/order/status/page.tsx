@@ -51,7 +51,7 @@ export default function OrderStatusPage() {
   const isSubdomain = typeof window !== "undefined" && slug && window.location.hostname.includes(slug);
   const menuUrl = isSubdomain 
     ? (tableId === "new-order" ? "/" : `/${tableId}`)
-    : (tableId === "new-order" ? `/order/${slug}` : `/order/${slug}?tableId=${tableId}`);
+    : `/order/${slug}/${tableId}`;
 
   useEffect(() => {
     if (!orderId) {

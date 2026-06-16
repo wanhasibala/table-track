@@ -494,7 +494,7 @@ export const OrderForm = ({
             </Button>
           </div>
 
-          <ScrollArea className="max-h-[420px] pr-2 border rounded-xl bg-muted/10">
+          <ScrollArea className="max-h-[420px] pr-2 border rounded-xl bg-muted/10 overflow-y-scroll">
             <div className="p-3 space-y-3">
               {items.length > 0 ? (
                 items.map((item, index) => {

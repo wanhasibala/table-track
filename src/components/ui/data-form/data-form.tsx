@@ -55,7 +55,6 @@ import {
 } from "lucide-react";
 import { ScrollArea } from "../scroll-area";
 import { shortDate } from "@/lib/date";
-import { useTranslation } from "@/lib/use-translation";
 import { HTMLProps } from "react";
 import { type DateRange } from "react-day-picker";
 import {

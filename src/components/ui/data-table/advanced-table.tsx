@@ -36,7 +36,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "../popover";
 import { Separator } from "../separator";
 import Sorting from "./sorting";
 import { ProcessButtonComponent } from "./process-button";
-import { useTranslation } from "@/lib/use-translation";
 import { usePermissions } from "@/hooks/use-permissions";
 
 interface Pagination {
@@ -230,7 +229,6 @@ export function AdvancedTable<
     },
     [onFiltersChange, filters, onPageChange],
   );
-  const { t } = useTranslation();
 
   // Handle per page change through filters
   const handlePerPageChange = React.useCallback(
@@ -504,7 +502,7 @@ export function AdvancedTable<
                 hasPermissions.hasPermission(addButton.permission)) && (
                 <Button onClick={addButton.onClick} size="sm">
                   <Plus className="mr-2 h-4 w-4" />
-                  {addButton?.text || t("table.add_button")}
+                  {addButton?.text || "Add"}
                 </Button>
               )}
           </div>

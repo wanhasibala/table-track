@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useTranslation } from "@/lib/use-translation";
 interface DataTablePaginationProps {
   currentPage: number;
   pageCount: number;
@@ -34,24 +33,23 @@ export function DataTablePagination({
   onPageChange,
   onPerPageChange,
 }: DataTablePaginationProps) {
-  const { t } = useTranslation();
 
 const perPageOptions = [
-  { value: "5", label: `5 ${t("table.pagination.per_page")}` },
-  { value: "10", label: `10 ${t("table.pagination.per_page")}` },
-  { value: "20", label: `20 ${t("table.pagination.per_page")}` },
-  { value: "50", label: `50 ${t("table.pagination.per_page")}` },
-  { value: "100", label: `100 ${t("table.pagination.per_page")}` },
+  { value: "5", label: `5 items per page` },
+  { value: "10", label: `10 items per page` },
+  { value: "20", label: `20 items per page` },
+  { value: "50", label: `50 items per page` },
+  { value: "100", label: `100 items per page` },
 ];
   return (
     <div className="flex items-center justify-between px-2 py-4 border-t flex-shrink-0 bg-background">
       <div className="flex items-center gap-4">
         <span className="text-sm text-muted-foreground">
-         {total} {t("table.pagination.total_items")}
+         {total} items
         </span>
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">
-            {t("table.pagination.rows")}
+            Rows per page:
           </p>
           <Select
             value={perPage.toString()}
@@ -72,8 +70,7 @@ const perPageOptions = [
       </div>
       <div className="flex items-center gap-6">
         <div className="flex w-fit items-center justify-center text-sm font-medium">
-          {t("table.pagination.page")} {currentPage}{" "}
-          {t("table.pagination.of")} {pageCount}
+          Page {currentPage} of {pageCount}
         </div>
         <div className="flex items-center space-x-2">
           <Button
@@ -82,7 +79,7 @@ const perPageOptions = [
             onClick={() => onPageChange(1)}
             disabled={currentPage === 1}
           >
-            <span className="sr-only">{t("table.pagination.previous")}</span>
+            <span className="sr-only">First page</span>
             <ChevronsLeft className="h-4 w-4" />
           </Button>
           <Button
@@ -91,7 +88,7 @@ const perPageOptions = [
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
           >
-            <span className="sr-only">{t("table.pagination.previous")}</span>
+            <span className="sr-only">Previous page</span>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button
@@ -100,7 +97,7 @@ const perPageOptions = [
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === pageCount}
           >
-            <span className="sr-only">{t("table.pagination.next")}</span>
+            <span className="sr-only">Next page</span>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button
@@ -109,7 +106,7 @@ const perPageOptions = [
             onClick={() => onPageChange(pageCount)}
             disabled={currentPage === pageCount}
           >
-            <span className="sr-only">{t("table.pagination.last")}</span>
+            <span className="sr-only">Last page</span>
             <ChevronsRight className="h-4 w-4" />
           </Button>
         </div>

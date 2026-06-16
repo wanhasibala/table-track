@@ -57,7 +57,6 @@ const Header = () => {
   const [user, setUser] = useState<User>({});
   const [role, setRole] = useState<Role>({});
   const [mounted, setMounted] = useState(false);
-  const [currentLocale, setCurrentLocale] = useState("en"); // Default value
   //   const [fetchData] = useLazyGetResourceQuery();
   // Notification states
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -75,15 +74,6 @@ const Header = () => {
   useEffect(() => {
     setMounted(true);
 
-    // Get locale from cookie
-    const getInitialLocale = () => {
-      const cookieLocale = Cookies.get("NEXT_LOCALE");
-      if (cookieLocale === "id" || cookieLocale === "en") return cookieLocale;
-      return "en";
-    };
-
-    setCurrentLocale(getInitialLocale());
-
     // Get user data from localStorage
     try {
       const storedUser = localStorage.getItem("user");
@@ -96,10 +86,7 @@ const Header = () => {
     }
   }, []);
 
-  const handleLocaleChange = (value: string) => {
-    Cookies.set("NEXT_LOCALE", value);
-    window.location.reload();
-  };
+
   const handleClearCache = async () => {
     try {
       const token = Cookies.get("token");
@@ -196,36 +183,6 @@ const Header = () => {
             )}
           </button>
         </div>
-
-        <Select value={currentLocale} onValueChange={handleLocaleChange}>
-          <SelectTrigger className="w-fit rounded-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="id">
-              <div className="flex items-center gap-2">
-                <Image
-                  src={"/Flag_of_Indonesia.svg.png"}
-                  width={20}
-                  height={20}
-                  alt="Indonesian Flag"
-                />
-                ID
-              </div>
-            </SelectItem>
-            <SelectItem value="en">
-              <div className="flex items-center gap-2">
-                <Image
-                  src={"/Flag_of_the_United_Kingdom_(3-5).svg.png"}
-                  width={20}
-                  height={20}
-                  alt="UK Flag"
-                />
-                EN
-              </div>
-            </SelectItem>
-          </SelectContent>
-        </Select>
 
         <Popover>
           <PopoverTrigger asChild>

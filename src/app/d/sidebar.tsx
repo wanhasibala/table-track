@@ -54,6 +54,7 @@ const DEFAULT_MENU: MenuItem[] = [
   { label: "Menu Management", url: "/d/menu-management" },
   { label: "Order Management", url: "/d/order-management" },
   { label: "Table Management", url: "/d/table-management" },
+  { label: "Billing & Plans", url: "/d/billing" },
   { label: "Reports", url: "/d/reports" },
   { label: "Settings", url: "/d/settings" },
 ];

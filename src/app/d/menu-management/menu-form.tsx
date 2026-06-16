@@ -5,6 +5,7 @@ import {
   useCreateResourceMutation,
   useGetResourceByIdQuery,
   useUpdateResourceMutation,
+  useGetResourceQuery,
 } from "@/store/services/flexible-querry";
 import React from "react";
 import { toast } from "sonner";
@@ -34,6 +35,21 @@ export const MenuForm = ({
   const [update] = useUpdateResourceMutation();
   const { uploadFile } = useFileUpload();
 
+  // Load menu items list to verify limits
+  const { data: menuItemsData } = useGetResourceQuery({
+    resource: "menu_item",
+  });
+  
+  // Get active tenant subscription tier
+  const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+  const user = userStr ? JSON.parse(userStr) : null;
+  const tenantId = user?.tenant_id;
+  
+  const { data: tenantData } = useGetResourceByIdQuery(
+    { resource: "tenant", id: tenantId! },
+    { skip: !tenantId }
+  );
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSubmit = async (data: any) => {
     try {
@@ -60,6 +76,13 @@ export const MenuForm = ({
       }
 
       if (isNew) {
+        const tier = tenantData?.data?.subscription_tier || "free";
+        const count = menuItemsData?.data?.length || 0;
+        if (tier === "free" && count >= 5) {
+          toast.error("You've reached the free tier limit of 5 menu items. Please upgrade to Pro to add more!");
+          return;
+        }
+        
         await create({
           resource: "menu_item",
           body: data,

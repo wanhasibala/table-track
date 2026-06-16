@@ -276,6 +276,35 @@ export type Database = {
           },
         ]
       }
+      order_push_token: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_push_token_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "order_table"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_table: {
         Row: {
           created_at: string
@@ -360,6 +389,7 @@ export type Database = {
           midtrans_id: string | null
           order_id: string
           paid_at: string | null
+          payment_receipt_url: string | null
           status: Database["public"]["Enums"]["payment_status"]
           tenant_id: string
         }
@@ -370,6 +400,7 @@ export type Database = {
           midtrans_id?: string | null
           order_id: string
           paid_at?: string | null
+          payment_receipt_url?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           tenant_id?: string
         }
@@ -380,6 +411,7 @@ export type Database = {
           midtrans_id?: string | null
           order_id?: string
           paid_at?: string | null
+          payment_receipt_url?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           tenant_id?: string
         }
@@ -438,30 +470,63 @@ export type Database = {
       tenant: {
         Row: {
           address: string | null
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_name: string | null
           created_at: string
           id: string
           is_active: boolean
+          latitude: number | null
           logo_url: string | null
+          longitude: number | null
           name: string
+          payment_customer_id: string | null
+          payment_instructions: string | null
+          payment_subscription_id: string | null
+          qris_image_url: string | null
           slug: string
+          subscription_status: string | null
+          subscription_tier: string | null
         }
         Insert: {
           address?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
+          latitude?: number | null
           logo_url?: string | null
+          longitude?: number | null
           name: string
+          payment_customer_id?: string | null
+          payment_instructions?: string | null
+          payment_subscription_id?: string | null
+          qris_image_url?: string | null
           slug: string
+          subscription_status?: string | null
+          subscription_tier?: string | null
         }
         Update: {
           address?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
+          latitude?: number | null
           logo_url?: string | null
+          longitude?: number | null
           name?: string
+          payment_customer_id?: string | null
+          payment_instructions?: string | null
+          payment_subscription_id?: string | null
+          qris_image_url?: string | null
           slug?: string
+          subscription_status?: string | null
+          subscription_tier?: string | null
         }
         Relationships: []
       }
@@ -496,6 +561,35 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_push_token: {
+        Row: {
+          created_at: string
+          id: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_push_token_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_account"
             referencedColumns: ["id"]
           },
         ]

@@ -37,7 +37,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { type FilterConfig, type FilterValue } from "./filter";
-import { useTranslation } from "@/lib/use-translation";
 import { EditArrowDownIcon } from "@/components/icons/icons";
 
 interface YearPickerProps {
@@ -85,7 +84,6 @@ interface SheetFilterProps {
 
 export function SheetFilter({ filters, config, onChange }: SheetFilterProps) {
   const [open, setOpen] = React.useState(false);
-  const { t } = useTranslation();
   const [localFilters, setLocalFilters] = React.useState(filters);
   const [popoverOpen, setPopoverOpen] = React.useState<{
     [key: string]: boolean;
@@ -403,7 +401,7 @@ export function SheetFilter({ filters, config, onChange }: SheetFilterProps) {
         <div className="mt-4 flex gap-2">
           <Button onClick={handleApply}>
             {" "}
-            {t("table.sheet_filter.apply")}
+            Apply Filters
           </Button>
           <Button
             variant="outline"
@@ -430,7 +428,7 @@ export function SheetFilter({ filters, config, onChange }: SheetFilterProps) {
               setPopoverOpen({});
             }}
           >
-            {t("table.sheet_filter.reset")}
+            Reset
           </Button>
         </div>
       </SheetContent>

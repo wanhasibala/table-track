@@ -14,9 +14,10 @@ export default function CartPageRedirect() {
     if (slug) {
       const isSubdomain = typeof window !== "undefined" && window.location.hostname.includes(slug as string);
       if (isSubdomain) {
-        router.replace(`/?tableId=${tableId}`);
+        const targetPath = tableId === "new-order" ? "/" : `/${tableId}`;
+        router.replace(targetPath);
       } else {
-        router.replace(`/order/${slug}?tableId=${tableId}`);
+        router.replace(`/order/${slug}/${tableId}`);
       }
     }
   }, [router, params, searchParams]);

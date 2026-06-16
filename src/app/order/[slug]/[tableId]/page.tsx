@@ -91,7 +91,7 @@ export default function OrderMenuPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
-  const tableId = (searchParams.get("tableId") || searchParams.get("table_id") || "new-order") as string;
+  const tableId = (params.tableId || searchParams.get("tableId") || searchParams.get("table_id") || "new-order") as string;
 
   const [tenant, setTenant] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
