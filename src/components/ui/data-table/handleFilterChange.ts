@@ -2,8 +2,8 @@ import { FilterValue } from "./filter";
 
 export const handleFiltersChange = (
   newFilters: Record<string, FilterValue>,
-  setFilters: (prev) => void,
-  setCurrentPage: (prev: number) => void,
+  setFilters: (fn: (prev: Record<string, string>) => Record<string, string>) => void,
+  setCurrentPage: (page: number) => void,
 ) => {
   setFilters((prev) => {
     const stringFilters: Record<string, string> = {};
