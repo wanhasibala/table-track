@@ -87,109 +87,31 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-10">
+    <div className="space-y-6 max-w-4xl mx-auto pb-10">
       <div>
         <h3 className="text-2xl font-bold tracking-tight">Billing & Subscription</h3>
-        <p className="text-sm text-muted-foreground">Manage your subscription tier, billing methods, and resource usage.</p>
+        <p className="text-sm text-muted-foreground">Manage your TableTrack subscription to unlock restaurant ordering features.</p>
       </div>
 
-      {/* Usage summary widget */}
-      <Card className="border-border/80 bg-card/40 backdrop-blur-md">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            Resource Usage Summary
-            {!isPro && (
-              <span className="text-xs bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-semibold">
-                Free Tier Limits Active
-              </span>
-            )}
-          </CardTitle>
-          <CardDescription>Monitor your active store resource caps</CardDescription>
-        </CardHeader>
-        <CardContent className="grid md:grid-cols-2 gap-6">
-          {/* Menu items meter */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-semibold">
-              <span>Menu Items</span>
-              <span className="text-muted-foreground">
-                {menuItemsCount} / {isPro ? "Unlimited" : "5 items"}
-              </span>
-            </div>
-            <Progress value={menuPercent} className={cn("h-2", isPro ? "bg-slate-200" : menuPercent >= 100 ? "bg-red-500" : "bg-orange-500")} />
-            {!isPro && menuItemsCount >= 5 && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
-                <ShieldAlert className="size-3.5" /> Menu cap reached. Upgrade to add more items.
-              </p>
-            )}
+      {/* Subscription Status Warning Alert */}
+      {!isPro && (
+        <div className="border border-amber-500/20 bg-amber-500/10 rounded-lg p-4 flex items-start gap-3">
+          <ShieldAlert className="size-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-semibold text-amber-400">Subscription Required</h4>
+            <p className="text-sm text-slate-300 mt-1">
+              Your account is currently inactive. Please subscribe to the Pro plan below to access the Menu, Tables, and Live Ordering features.
+            </p>
           </div>
+        </div>
+      )}
 
-          {/* Table spots meter */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-semibold">
-              <span>Table Spots</span>
-              <span className="text-muted-foreground">
-                {tableSpotsCount} / {isPro ? "Unlimited" : "3 tables"}
-              </span>
-            </div>
-            <Progress value={tablePercent} className={cn("h-2", isPro ? "bg-slate-200" : tablePercent >= 100 ? "bg-red-500" : "bg-orange-500")} />
-            {!isPro && tableSpotsCount >= 3 && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
-                <ShieldAlert className="size-3.5" /> Table cap reached. Upgrade to add more spots.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Plan comparisons grid */}
-      <div className="grid md:grid-cols-2 gap-6 mt-6">
-        {/* Free Plan Card */}
-        <Card className={cn(
-          "border-border/80 relative flex flex-col justify-between overflow-hidden",
-          !isPro && "border-orange-500/25 shadow-orange-500/5 bg-slate-900/10"
-        )}>
-          {!isPro && (
-            <div className="absolute top-3 right-3 bg-orange-500/10 text-orange-500 text-[10px] px-2 py-0.5 rounded font-mono font-semibold border border-orange-500/20">
-              Active Plan
-            </div>
-          )}
-          <CardHeader>
-            <CardTitle className="text-xl">Free Tier</CardTitle>
-            <CardDescription>Perfect for testing and small venues</CardDescription>
-            <div className="mt-3 flex items-baseline gap-1 text-slate-100">
-              <span className="text-3xl font-extrabold">$0</span>
-              <span className="text-sm text-muted-foreground">/ month</span>
-            </div>
-          </CardHeader>
-          <CardContent className="flex-1 space-y-3.5">
-            <div className="flex items-start gap-2.5 text-sm">
-              <Check className="size-4 text-emerald-500 shrink-0 mt-0.5" />
-              <span>Up to <strong>5 menu items</strong> hosting</span>
-            </div>
-            <div className="flex items-start gap-2.5 text-sm">
-              <Check className="size-4 text-emerald-500 shrink-0 mt-0.5" />
-              <span>Up to <strong>3 table spots</strong> generation</span>
-            </div>
-            <div className="flex items-start gap-2.5 text-sm">
-              <Check className="size-4 text-emerald-500 shrink-0 mt-0.5" />
-              <span>Standard scan QR customer menu access</span>
-            </div>
-            <div className="flex items-start gap-2.5 text-sm">
-              <Check className="size-4 text-emerald-500 shrink-0 mt-0.5" />
-              <span>Path-based URLs only (<code className="text-xs">/order/slug</code>)</span>
-            </div>
-          </CardContent>
-          <CardFooter className="pt-4 border-t border-border/30 bg-muted/20">
-            <Button disabled className="w-full font-semibold" variant="outline">
-              {!isPro ? "Current Active Plan" : "Downgrade Unavailable"}
-            </Button>
-          </CardFooter>
-        </Card>
-
+      {/* Pro Plan Card Section */}
+      <div className="flex justify-center mt-6">
         {/* Pro Plan Card */}
         <Card className={cn(
-          "border-border/80 relative flex flex-col justify-between overflow-hidden transition-all duration-300",
-          isPro ? "border-orange-500 border-2 bg-slate-900/30 shadow-orange-500/10" : "hover:border-orange-500/40 hover:-translate-y-0.5"
+          "border-border/80 relative flex flex-col justify-between overflow-hidden transition-all duration-300 w-full max-w-md",
+          isPro ? "border-orange-500 border-2 bg-slate-900/30 shadow-orange-500/10" : "border-orange-500/40 bg-slate-900/10 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/5 hover:-translate-y-0.5"
         )}>
           {isPro ? (
             <div className="absolute top-3 right-3 bg-orange-500 text-white text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
@@ -205,7 +127,7 @@ export default function BillingPage() {
             <CardTitle className="text-xl flex items-center gap-1.5">
               Pro Tier
             </CardTitle>
-            <CardDescription>For growing businesses looking to scale ordering</CardDescription>
+            <CardDescription>Everything you need to launch and scale digital restaurant ordering</CardDescription>
             <div className="mt-3 flex items-baseline gap-1 text-slate-100">
               <span className="text-3xl font-extrabold">$29</span>
               <span className="text-sm text-muted-foreground">/ month</span>
@@ -223,7 +145,7 @@ export default function BillingPage() {
             </div>
             <div className="flex items-start gap-2.5 text-sm">
               <Check className="size-4 text-orange-500 shrink-0 mt-0.5" />
-              <span><strong>Custom Subdomains</strong> mapping (e.g. <code className="text-xs">misenary.localhost</code>)</span>
+              <span><strong>Custom Subdomains</strong> mapping (e.g. <code className="text-xs">yourbrand.tabletrack.com</code>)</span>
             </div>
             <div className="flex items-start gap-2.5 text-sm">
               <Check className="size-4 text-orange-500 shrink-0 mt-0.5" />
@@ -252,7 +174,7 @@ export default function BillingPage() {
                   </span>
                 ) : (
                   <span className="flex items-center gap-1.5 justify-center">
-                    <CreditCard className="size-4" /> Upgrade to Pro
+                    <CreditCard className="size-4" /> Subscribe to Pro
                   </span>
                 )}
               </Button>

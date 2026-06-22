@@ -510,6 +510,24 @@ export default function OrderMenuPage() {
     );
   }
 
+  if (!tenant || tenant.subscription_tier !== "pro") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white p-6 text-center">
+        <div className="max-w-md space-y-4">
+          <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center mx-auto text-red-500">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-100 font-sans">Menu Offline</h2>
+          <p className="text-slate-400 text-sm font-sans leading-relaxed">
+            This restaurant's digital menu is currently offline. If you are the store owner, please check your subscription status in the TableTrack dashboard.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-muted/20 pb-24 text-foreground selection:bg-primary selection:text-primary-foreground">
       {/* Banner / Header */}
