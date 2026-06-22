@@ -23,7 +23,9 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 export default function RegisterPage() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,10 +46,16 @@ export default function RegisterPage() {
       return;
     }
 
-    // 1. Sign up user inside Supabase Auth
+    // 1. Sign up user inside Supabase Auth with metadata
     const { data: authData, error: registerError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          name: name.trim(),
+          phone_number: phone.trim(),
+        }
+      }
     });
 
     if (registerError) {
@@ -61,6 +69,12 @@ export default function RegisterPage() {
     const session = authData?.session;
 
     if (user) {
+      // Direct update to user_account name column to guarantee profile name sync
+      await supabase
+        .from("user_account")
+        .update({ name: name.trim() })
+        .eq("id", user.id);
+
       // CASE A: Email confirmation is ON (User is not logged in yet)
       if (!session) {
         toast.success("Registration successful! Please check your inbox to confirm your email.");
@@ -70,7 +84,6 @@ export default function RegisterPage() {
       }
 
       // CASE B: Email confirmation is OFF (User is instantly logged in)
-      // FIX: Changed table target from "profiles" to "user_account"
       const { data: account, error: profileError } = await supabase
         .from("user_account")
         .select("tenant_id, role, name, email")
@@ -85,7 +98,8 @@ export default function RegisterPage() {
           JSON.stringify({
             id: user.id,
             email: account?.email || user.email,
-            name: account?.name || account?.email || user.email,
+            name: account?.name || name || user.email,
+            phone_number: phone,
             tenant_id: account?.tenant_id,
           })
         );
@@ -117,12 +131,24 @@ export default function RegisterPage() {
           <CardHeader>
             <CardTitle>Register to an account</CardTitle>
             <CardDescription>
-              Enter your email below to register to your account
+              Enter your registration details below to create an account
             </CardDescription>
           </CardHeader>
           <CardContent className="gap-2">
             <form onSubmit={handleSubmit} className="w-full">
               <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="name">Full Name</FieldLabel>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="John Doe"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={loading}
+                  />
+                </Field>
                 <Field>
                   <FieldLabel htmlFor="email">Email</FieldLabel>
                   <Input
@@ -132,6 +158,18 @@ export default function RegisterPage() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={loading}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="phone">Phone Number (WhatsApp)</FieldLabel>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="e.g. +6281234567890"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
                     disabled={loading}
                   />
                 </Field>
