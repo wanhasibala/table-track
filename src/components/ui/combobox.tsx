@@ -29,7 +29,7 @@ export interface ComboboxOption {
 export interface ComboboxProps {
   options: ComboboxOption[];
   value: string | string[] | null;
-  onChange: (value: any) => void;
+  onChange: (value: string | string[] | null) => void;
   placeholder?: string;
   className?: string;
   multiple?: boolean;
