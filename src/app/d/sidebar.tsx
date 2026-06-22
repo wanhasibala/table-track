@@ -26,9 +26,10 @@ import {
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/utils/supabase/client";
+import { useGetResourceByIdQuery } from "@/store/services/flexible-querry";
 
 interface MenuItem {
   label: string;
@@ -69,9 +70,34 @@ const SUPER_ADMIN_MENU: MenuItem[] = [
 ];
 
 export function useSidebarItems(): MenuItem[] {
-  const [items, setItems] = useState<MenuItem[]>(DEFAULT_MENU);
+  // Get active tenant details
+  const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+  const user = userStr ? JSON.parse(userStr) : null;
+  const tenantId = user?.tenant_id;
 
-  return items;
+  const { data: tenantData } = useGetResourceByIdQuery(
+    { resource: "tenant", id: tenantId! },
+    { skip: !tenantId }
+  );
+
+  const tenant = tenantData?.data;
+  const subscriptionTier = tenant?.subscription_tier || "free";
+
+  const menu = useMemo(() => {
+    if (subscriptionTier === "pro") {
+      return DEFAULT_MENU;
+    }
+    // If not subscribed/pro, restrict the sidebar to show only Billing & Plans
+    return [
+      {
+        label: "Billing & Plans",
+        url: "/d/billing",
+        icon: SquareActivity, // Reusing icon for the single item
+      }
+    ];
+  }, [subscriptionTier]);
+
+  return menu;
 }
 
 export default function AppSidebar() {
