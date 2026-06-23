@@ -37,7 +37,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { type FilterConfig, type FilterValue } from "./filter";
-import { EditArrowDownIcon } from "@/components/icons/icons";
 
 interface YearPickerProps {
   value: number | null;
@@ -150,7 +149,7 @@ export function SheetFilter({ filters, config, onChange }: SheetFilterProps) {
   );
 
   const createComboboxOnChange = React.useCallback(
-    (column: string) => (value: string | string[]) => {
+    (column: string) => (value: string | string[] | null) => {
       handleFilterChange(column, value);
     },
     [handleFilterChange]

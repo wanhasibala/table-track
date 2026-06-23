@@ -86,7 +86,7 @@ const Page = () => {
           },
         }}
         view="list"
-        listRender={(data) => {
+        listRender={(data: any) => {
           const images = getImages(data.image_url);
           const hasImage = images.length > 0;
           const firstImage = hasImage ? images[0] : "";

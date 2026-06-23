@@ -24,7 +24,7 @@ export default function Sorting({
   filters,
   sheetFilterConfig,
   onFiltersChange,
-}: SortingProps<TData>) {
+}: SortingProps<{ id: string }>) {
   const hasSorting = sortButtons;
   const hasFiltering =
     useSheetFilter &&filters && onFiltersChange;
