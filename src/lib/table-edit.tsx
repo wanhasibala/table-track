@@ -277,7 +277,7 @@ export function DataTable<
                                         ).inputType?.options || []
                                       }
                                       value={cell.getValue() as string}
-                                      onChange={(value: string | string[]) => {
+                                      onChange={(value: string | string[] | null) => {
                                         table.options.meta?.updateData?.(
                                           row.index,
                                           cell.column.id,
