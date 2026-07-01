@@ -81,7 +81,7 @@ const Page = () => {
       <h3 className="text-xl font-semibold mb-4">Order Management</h3>
       <AdvancedTable
         columns={columns}
-        data={data?.data || []}
+        data={data?.data.map((item) => ({ id: `#${item.order_number}`, ...item })) || []}
         filterConfig={[
           {
             label: "Date",

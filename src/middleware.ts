@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
 
   // 1. Define your main production domains and local dev hosts
-  const mainDomains = ["table-track-id.vercel.app", "tabletrack.com", "localhost:3000", "localhost"];
+  const mainDomains = ["table-track-id.vercel.app", "table-track-id.vercel.app", "localhost:3000", "localhost"];
   
   // Clean up hostname by stripping the port
   let currentHost = hostname;

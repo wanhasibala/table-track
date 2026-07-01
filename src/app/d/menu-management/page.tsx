@@ -85,7 +85,6 @@ const Page = () => {
             setDialog((prev) => ({ ...prev, open: true, id: "new" }));
           },
         }}
-        view="list"
         listRender={(data: any) => {
           const images = getImages(data.image_url);
           const hasImage = images.length > 0;

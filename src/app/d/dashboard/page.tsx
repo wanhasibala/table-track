@@ -111,12 +111,20 @@ export default function DashboardPage() {
     ).size;
 
     return {
-      revenue: revenue || 17900, // Use mock fallback if 0 to show visual aesthetics
+      revenue: revenue || 250000, // Use mock fallback if 0 to show visual aesthetics
       orders: totalOrdersCount || 556,
-      aov: aov || 32.2,
+      aov: aov || 45000,
       activeTables: busyTables || liveTables.length || 8
     };
   }, [liveOrders, liveTables]);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
 
   if (ordersLoading || tablesLoading) {
     return (
@@ -143,7 +151,7 @@ export default function DashboardPage() {
             <DollarSign className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats.revenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.revenue)}</div>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
               <TrendingUp className="size-3.5 text-emerald-500" /> +12% from last week
             </p>
@@ -171,7 +179,7 @@ export default function DashboardPage() {
             <UtensilsCrossed className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats.aov.toFixed(2)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.aov)}</div>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
               <TrendingUp className="size-3.5 text-emerald-500" /> +4.1% higher upsell
             </p>
@@ -212,6 +220,7 @@ export default function DashboardPage() {
                 <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={12} />
                 <YAxis stroke="var(--muted-foreground)" fontSize={12} />
                 <Tooltip
+                  formatter={(value: any) => [formatCurrency(Number(value)), "Sales"]}
                   contentStyle={{
                     backgroundColor: "var(--card)",
                     borderColor: "var(--border)",
@@ -294,7 +303,7 @@ export default function DashboardPage() {
                     <tr key={order.id} className="hover:bg-muted/10 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-medium text-xs">#{order.id.slice(0, 8)}</td>
                       <td className="py-3.5 px-4">{order.customer_name || "Guest Diner"}</td>
-                      <td className="py-3.5 px-4 font-bold">${Number(order.total_price || 0).toFixed(2)}</td>
+                      <td className="py-3.5 px-4 font-bold">{formatCurrency(Number(order.total_price || 0))}</td>
                       <td className="py-3.5 px-4">
                         <span className={cn(
                           "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border",

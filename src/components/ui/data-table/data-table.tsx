@@ -209,7 +209,7 @@ export function DataTable<
   return (
     <div className="border-y w-full flex-1 overflow-hidden flex flex-col relative">
       {view === "list" ? (
-        <ScrollArea className="flex-1 w-full bg-background/50">
+        <ScrollArea className="flex-1 w-full bg-background/50 overflow-y-scroll">
           <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {features?.tree ? (
               getAllVisibleRows.length ? (

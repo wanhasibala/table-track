@@ -9,8 +9,60 @@ datasource db {
 }
 
 model user {
-   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name String? @db.VarChar
-  email String? @db.VarChar
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String?  @db.VarChar
+  email      String?  @db.VarChar
   created_at DateTime @default(now()) @db.Timestamp(6)
+}
+
+model order_table {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id          String       @db.Uuid
+  table_id           String?      @db.Uuid
+  handled_by         String?      @db.Uuid
+  customer_name      String?      @db.VarChar
+  customer_phone     String?      @db.VarChar
+  type               String       @default("dine_in") @db.VarChar // enum: dine_in, takeaway, delivery
+  status             String       @default("pending") @db.VarChar // enum: pending, confirmed, preparing, served, cancelled, completed
+  total_amount       Float        @default(0)
+  notes              String?      @db.Text
+  delivery_address   String?      @db.Text
+  delivery_fee       Float        @default(0)
+  delivery_latitude  Float?
+  delivery_longitude Float?
+  created_at         DateTime     @default(now()) @db.Timestamp(6)
+  
+  // Auto-incrementing order number (sequential ID)
+  order_number       Int          @default(autoincrement())
+
+  items              order_item[]
+
+  @@map("order_table")
+}
+
+model order_item {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id     String      @db.Uuid
+  tenant_id    String      @db.Uuid
+  menu_item_id String?     @db.Uuid
+  option_id    String?     @db.Uuid
+  qty          Int         @default(1)
+  unit_price   Float       @default(0)
+  notes        String?     @db.Text
+
+  order        order_table @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@map("order_item")
+}
+
+model expense {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id   String   @db.Uuid
+  amount      Float
+  category    String   @db.VarChar
+  description String?  @db.Text
+  date        DateTime @default(now()) @db.Timestamp(6)
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+
+  @@map("expense")
 }

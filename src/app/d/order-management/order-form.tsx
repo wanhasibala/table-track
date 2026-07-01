@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, ShoppingBag } from "lucide-react";
+import { Plus, Trash2, ShoppingBag, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -394,6 +394,181 @@ export const OrderForm = ({
     }
   };
 
+  const handlePrintReceipt = async () => {
+    let tableName = "N/A";
+    let staffName = "N/A";
+    let orderNum: number | null = null;
+
+    try {
+      const supabase = createClient();
+      const { data: orderDetails } = await supabase
+        .from("order_table")
+        .select("*, table_spot(name), user_account(name)")
+        .eq("id", id)
+        .single();
+        
+      if (orderDetails) {
+        tableName = (orderDetails as any).table_spot?.name || "N/A";
+        staffName = (orderDetails as any).user_account?.name || "N/A";
+        orderNum = (orderDetails as any).order_number || null;
+      }
+    } catch (e) {
+      console.error("Error resolving receipt metadata:", e);
+    }
+
+    const printWindow = window.open("", "_blank", "width=600,height=600");
+    if (!printWindow) {
+      toast.error("Please allow popups to print the receipt");
+      return;
+    }
+
+    const itemsHtml = items.map((item) => {
+      const itemName = menuMap[item.menu_item_id]?.name || "Unknown Item";
+      const optionLabel = item.option_id 
+        ? getOptionsForMenuItem(item.menu_item_id).find((o) => o.id === item.option_id)?.label || "" 
+        : "";
+      const cleanOption = optionLabel.split(" (+")[0] || "";
+      const nameString = cleanOption ? `${itemName} (${cleanOption})` : itemName;
+      
+      return `
+        <tr>
+          <td style="padding: 4px 0;">
+            <div style="font-weight: bold;">${nameString}</div>
+            <div style="font-size: 10px; color: #555;">${item.qty} x ${formatCurrency(item.unit_price)}</div>
+            ${item.notes ? `<div style="font-size: 10px; font-style: italic; color: #666;">* Note: ${item.notes}</div>` : ""}
+          </td>
+          <td style="text-align: right; padding: 4px 0; font-weight: bold; font-family: monospace;">
+            ${formatCurrency(item.qty * item.unit_price)}
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    const receiptHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt #${id.slice(0, 8)}</title>
+        <style>
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          body {
+            font-family: 'Courier New', Courier, monospace;
+            width: 74mm;
+            margin: 0 auto;
+            padding: 15px 5px;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #000;
+            background-color: #fff;
+          }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .bold { font-weight: bold; }
+          .header { margin-bottom: 12px; }
+          .header h2 { margin: 0 0 4px 0; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
+          .subtitle { font-size: 9px; color: #333; margin-bottom: 2px; }
+          .divider { border-top: 1px dashed #000; margin: 8px 0; }
+          .meta-table { width: 100%; margin-bottom: 8px; font-size: 10px; }
+          .meta-table td { padding: 1px 0; }
+          .item-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+          .totals-table { width: 100%; margin-top: 8px; font-size: 11px; }
+          .totals-table td { padding: 2px 0; }
+          .grand-total { font-size: 13px; font-weight: bold; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; }
+          .footer { margin-top: 20px; font-size: 9px; color: #333; }
+        </style>
+      </head>
+      <body>
+        <div class="header text-center">
+          <h2>TableTrack</h2>
+          <div class="subtitle">Fresh Fruits & Digital Ordering</div>
+          <div class="subtitle">Tel: ${customerPhone || "N/A"}</div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <table class="meta-table">
+          ${orderNum ? `
+          <tr>
+            <td style="font-weight: bold; font-size: 12px;">ORDER NUMBER:</td>
+            <td style="text-align: right; font-weight: bold; font-size: 13px; font-family: monospace;">#${orderNum}</td>
+          </tr>
+          ` : ""}
+          <tr>
+            <td>Order ID:</td>
+            <td style="text-align: right; font-family: monospace;">#${id}</td>
+          </tr>
+          <tr>
+            <td>Date:</td>
+            <td style="text-align: right;">${new Date().toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}</td>
+          </tr>
+          <tr>
+            <td>Customer:</td>
+            <td style="text-align: right; font-weight: bold;">${customerName || "Walk-in Guest"}</td>
+          </tr>
+          <tr>
+            <td>Table / Spot:</td>
+            <td style="text-align: right;">${tableName}</td>
+          </tr>
+          <tr>
+            <td>Staff:</td>
+            <td style="text-align: right;">${staffName}</td>
+          </tr>
+        </table>
+        
+        <div class="divider"></div>
+        
+        <table class="item-table">
+          <thead>
+            <tr style="border-bottom: 1px dashed #000;">
+              <th style="text-align: left; font-size: 10px; padding-bottom: 4px;">ITEM</th>
+              <th style="text-align: right; font-size: 10px; padding-bottom: 4px;">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+        
+        <div class="divider"></div>
+        
+        <table class="totals-table">
+          <tr class="grand-total">
+            <td>GRAND TOTAL:</td>
+            <td style="text-align: right; font-family: monospace;">${formatCurrency(grandTotal)}</td>
+          </tr>
+        </table>
+        
+        ${notes ? `
+          <div style="margin-top: 10px; font-size: 10px;">
+            <strong>Order Notes:</strong>
+            <div style="font-style: italic; margin-top: 2px;">${notes}</div>
+          </div>
+        ` : ""}
+        
+        <div class="footer text-center">
+          <p>Thank you for ordering with TableTrack!</p>
+          <p>Powered by TableTrack digital system</p>
+        </div>
+        
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+              window.close();
+            }, 300);
+          }
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(receiptHtml);
+    printWindow.document.close();
+  };
+
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground text-sm font-medium">Loading details...</div>;
   }
@@ -562,7 +737,7 @@ export const OrderForm = ({
                             type="number"
                             min={1}
                             value={item.qty}
-                            onChange={(e) => handleItemChange(item.tempId, { qty: Number(e.target.value) || 1 })}
+                            onChange={(e) => handleItemChange(item.tempId, { qty: Number(e.target.value)   })}
                             className="h-8.5 text-xs bg-background"
                           />
                         </div>
@@ -628,6 +803,17 @@ export const OrderForm = ({
           </Button>
         )}
         <div className="flex gap-2 ml-auto">
+          {!isNew && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrintReceipt}
+              disabled={submitLoading || deleteLoading}
+              className="flex items-center gap-2"
+            >
+              <Printer className="h-4 w-4" /> Print Receipt
+            </Button>
+          )}
           <Button
             type="submit"
             disabled={submitLoading || deleteLoading}

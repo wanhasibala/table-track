@@ -10,7 +10,7 @@ export const orderColumns = (
     header: "Order ID",
     cell: ({ row }) => (
       <span className="font-mono text-xs text-muted-foreground">
-        #{row.original.id.slice(0, 8)}...
+      #{row.original.order_number} 
       </span>
     ),
   },

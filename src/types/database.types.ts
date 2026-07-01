@@ -212,6 +212,42 @@ export type Database = {
             referencedRelation: "menu_variant"
             referencedColumns: ["id"]
           },
+      expense: {
+        Row: {
+          id: string
+          tenant_id: string
+          amount: number
+          category: string
+          description: string | null
+          date: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          amount: number
+          category: string
+          description?: string | null
+          date?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          amount?: number
+          category?: string
+          description?: string | null
+          date?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          }
         ]
       }
       order_item: {
@@ -317,6 +353,7 @@ export type Database = {
           handled_by: string | null
           id: string
           notes: string | null
+          order_number: number
           status: Database["public"]["Enums"]["order_status"]
           table_id: string | null
           tenant_id: string
@@ -334,6 +371,7 @@ export type Database = {
           handled_by?: string | null
           id?: string
           notes?: string | null
+          order_number?: number
           status?: Database["public"]["Enums"]["order_status"]
           table_id?: string | null
           tenant_id?: string
@@ -351,6 +389,7 @@ export type Database = {
           handled_by?: string | null
           id?: string
           notes?: string | null
+          order_number?: number
           status?: Database["public"]["Enums"]["order_status"]
           table_id?: string | null
           tenant_id?: string

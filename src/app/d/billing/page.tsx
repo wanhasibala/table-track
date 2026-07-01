@@ -129,8 +129,8 @@ export default function BillingPage() {
             </CardTitle>
             <CardDescription>Everything you need to launch and scale digital restaurant ordering</CardDescription>
             <div className="mt-3 flex items-baseline gap-1 text-slate-100">
-              <span className="text-3xl font-extrabold">$29</span>
-              <span className="text-sm text-muted-foreground">/ month</span>
+              <span className="text-3xl font-extrabold">Rp 450.000</span>
+              <span className="text-sm text-muted-foreground">/ bulan</span>
             </div>
           </CardHeader>
           
