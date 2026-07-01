@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -26,7 +27,8 @@ import {
   Download,
   Calendar,
   Layers,
-  FileText
+  FileText,
+  ArrowRight
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -39,52 +41,87 @@ export default function MoneyManagementPage() {
     id: "",
   });
 
-  // Date Filter State: "today" | "week" | "month" | "year" | "all"
+  // Date Filter State: "today" | "week" | "month" | "year" | "custom" | "all"
   const [dateFilter, setDateFilter] = useState<string>("month");
+
+  // Custom date bounds (YYYY-MM-DD strings)
+  const [customFrom, setCustomFrom] = useState<string>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split("T")[0]; // start of month
+  });
   
+  const [customTo, setCustomTo] = useState<string>(() => {
+    return new Date().toISOString().split("T")[0]; // today
+  });
+
   // Toggle between "summary" (grouped view) and "expenses" (raw ledger view)
   const [viewMode, setViewMode] = useState<"summary" | "expenses">("summary");
 
-  // Compute date boundary parameter for query filtering
-  const filterDateLimit = useMemo(() => {
+  // Compute date boundary parameters for query filtering
+  const filterDateBoundaries = useMemo(() => {
     if (dateFilter === "all") return null;
 
-    const now = new Date();
     let startDate = new Date();
+    let endDate = new Date();
 
     if (dateFilter === "today") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    } else if (dateFilter === "week") {
-      const day = now.getDay();
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-      startDate = new Date(now.getFullYear(), now.getMonth(), diff);
-    } else if (dateFilter === "month") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    } else if (dateFilter === "year") {
-      startDate = new Date(now.getFullYear(), 0, 1);
+      startDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      return { gte: startDate.toISOString(), lte: endDate.toISOString() };
+    } 
+    
+    if (dateFilter === "week") {
+      const day = startDate.getDay();
+      const diff = startDate.getDate() - day + (day === 0 ? -6 : 1);
+      startDate = new Date(startDate.getFullYear(), startDate.getMonth(), diff);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      return { gte: startDate.toISOString(), lte: endDate.toISOString() };
+    } 
+    
+    if (dateFilter === "month") {
+      startDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      return { gte: startDate.toISOString(), lte: endDate.toISOString() };
+    } 
+    
+    if (dateFilter === "year") {
+      startDate = new Date(startDate.getFullYear(), 0, 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      return { gte: startDate.toISOString(), lte: endDate.toISOString() };
     }
 
-    startDate.setHours(0, 0, 0, 0);
-    return startDate.toISOString();
-  }, [dateFilter]);
+    if (dateFilter === "custom") {
+      startDate = new Date(customFrom + "T00:00:00");
+      endDate = new Date(customTo + "T23:59:59");
+      return { gte: startDate.toISOString(), lte: endDate.toISOString() };
+    }
+
+    return null;
+  }, [dateFilter, customFrom, customTo]);
 
   // Query parameters for expenses
   const queryParamsExpenses = useMemo(() => {
     return {
       order: "desc" as const,
       sort: "date" as const,
-      ...(filterDateLimit ? { date_gte: filterDateLimit } : {}),
+      ...(filterDateBoundaries?.gte ? { date_gte: filterDateBoundaries.gte } : {}),
+      ...(filterDateBoundaries?.lte ? { date_lte: filterDateBoundaries.lte } : {}),
     };
-  }, [filterDateLimit]);
+  }, [filterDateBoundaries]);
 
   // Query parameters for orders
   const queryParamsOrders = useMemo(() => {
     return {
       order: "desc" as const,
       sort: "created_at" as const,
-      ...(filterDateLimit ? { created_at_gte: filterDateLimit } : {}),
+      ...(filterDateBoundaries?.gte ? { created_at_gte: filterDateBoundaries.gte } : {}),
+      ...(filterDateBoundaries?.lte ? { created_at_lte: filterDateBoundaries.lte } : {}),
     };
-  }, [filterDateLimit]);
+  }, [filterDateBoundaries]);
 
   // 1. Fetch live operational expenses with DB-side filtering
   const { data: expenseData, isLoading: expensesLoading, refetch: refetchExpenses } = useGetResourceQuery({
@@ -156,7 +193,7 @@ export default function MoneyManagementPage() {
         const timeStr = dateObj.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
         return { key: timeStr, label: timeStr };
       }
-      if (dateFilter === "week") {
+      if (dateFilter === "week" || dateFilter === "custom") {
         const dayName = dateObj.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "short" });
         const key = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
         return { key, label: dayName };
@@ -281,20 +318,38 @@ export default function MoneyManagementPage() {
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
         <div>
           <h3 className="text-2xl font-bold tracking-tight">Money Management</h3>
           <p className="text-sm text-muted-foreground">Manage your operations expenses and review total revenue calculated from sales orders.</p>
         </div>
         
         {/* Date Filter & Export Options Toolbar */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Custom Date Picker Range (Shown only when dateFilter is "custom") */}
+          {dateFilter === "custom" && (
+            <div className="flex items-center gap-2 bg-card border border-border/80 rounded-lg p-1.5 shadow-sm">
+              <Input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="h-8 text-xs w-32 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 font-medium"
+              />
+              <ArrowRight className="size-3 text-muted-foreground" />
+              <Input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="h-8 text-xs w-32 border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 font-medium"
+              />
+            </div>
+          )}
+
           {/* Timeframe selector */}
-          <div className="flex items-center gap-1.5 bg-card border border-border/80 rounded-lg px-2 py-1">
+          <div className="flex items-center gap-1.5 bg-card border border-border/80 rounded-lg px-2 py-1 shadow-sm">
             <Calendar className="size-4 text-muted-foreground" />
             <Select value={dateFilter} onValueChange={(val) => {
               setDateFilter(val);
-              // Auto-toggle to summary view for week/month/year grouping
               if (val !== "today" && val !== "all") {
                 setViewMode("summary");
               }
@@ -307,6 +362,7 @@ export default function MoneyManagementPage() {
                 <SelectItem value="week">Weekly</SelectItem>
                 <SelectItem value="month">Monthly</SelectItem>
                 <SelectItem value="year">Yearly</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
                 <SelectItem value="all">All Time</SelectItem>
               </SelectContent>
             </Select>
@@ -316,7 +372,7 @@ export default function MoneyManagementPage() {
             variant="outline"
             size="sm"
             onClick={handleExportCSV}
-            className="h-9 text-xs font-semibold flex items-center gap-1.5"
+            className="h-9 text-xs font-semibold flex items-center gap-1.5 shadow-xs"
           >
             <Download className="size-3.5" /> Export Excel
           </Button>
