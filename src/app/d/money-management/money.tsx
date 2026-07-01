@@ -63,3 +63,41 @@ export const expenseColumns = (): ColumnDef<any>[] => [
     ),
   },
 ];
+
+export const summaryColumns = (): ColumnDef<any>[] => [
+  {
+    accessorKey: "label",
+    header: "Period",
+    cell: ({ row }) => <span className="font-semibold">{row.original.label}</span>,
+  },
+  {
+    accessorKey: "income",
+    header: "Total Income",
+    cell: ({ row }) => (
+      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+        {formatCurrency(row.original.income)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "expenses",
+    header: "Total Expenses",
+    cell: ({ row }) => (
+      <span className="font-mono text-rose-600 dark:text-rose-400 font-bold">
+        {formatCurrency(row.original.expenses)}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "profit",
+    header: "Net Profit",
+    cell: ({ row }) => {
+      const isPositive = row.original.profit >= 0;
+      return (
+        <span className={`font-mono font-black ${isPositive ? "text-primary" : "text-rose-500"}`}>
+          {formatCurrency(row.original.profit)}
+        </span>
+      );
+    },
+  },
+];

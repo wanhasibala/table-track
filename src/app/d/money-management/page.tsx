@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useGetResourceQuery } from "@/store/services/flexible-querry";
 import { AdvancedTable } from "@/components/ui/data-table/advanced-table";
-import { expenseColumns } from "./money";
+import { expenseColumns, summaryColumns } from "./money";
 import { MoneyForm } from "./money-form";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,12 +24,15 @@ import {
   ArrowDownLeft,
   Loader2,
   Download,
-  Calendar
+  Calendar,
+  Layers,
+  FileText
 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function MoneyManagementPage() {
-  const columns = expenseColumns();
+  const expCols = expenseColumns();
+  const sumCols = summaryColumns();
 
   const [dialog, setDialog] = useState({
     open: false,
@@ -38,6 +41,9 @@ export default function MoneyManagementPage() {
 
   // Date Filter State: "today" | "week" | "month" | "year" | "all"
   const [dateFilter, setDateFilter] = useState<string>("month");
+  
+  // Toggle between "summary" (grouped view) and "expenses" (raw ledger view)
+  const [viewMode, setViewMode] = useState<"summary" | "expenses">("summary");
 
   // Compute date boundary parameter for query filtering
   const filterDateLimit = useMemo(() => {
@@ -125,7 +131,6 @@ export default function MoneyManagementPage() {
 
   // Compute metrics from DB-filtered values
   const metrics = useMemo(() => {
-    // Only count completed and served orders as successful sales income
     const salesIncome = orders.reduce((sum: number, order: any) => {
       const isCompleted = order.status === "completed" || order.status === "served";
       return isCompleted ? sum + Number(order.total_amount || 0) : sum;
@@ -141,6 +146,72 @@ export default function MoneyManagementPage() {
       balance: salesIncome - totalExpenses,
     };
   }, [orders, expenses]);
+
+  // Grouped transaction data by timeframe period
+  const groupedSummaryData = useMemo(() => {
+    const groups: Record<string, { label: string; income: number; expenses: number }> = {};
+
+    const getGroupKeyAndLabel = (dateObj: Date): { key: string; label: string } => {
+      if (dateFilter === "today") {
+        const timeStr = dateObj.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+        return { key: timeStr, label: timeStr };
+      }
+      if (dateFilter === "week") {
+        const dayName = dateObj.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "short" });
+        const key = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
+        return { key, label: dayName };
+      }
+      if (dateFilter === "month") {
+        const dateStr = dateObj.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+        const key = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
+        return { key, label: dateStr };
+      }
+      if (dateFilter === "year") {
+        const monthName = dateObj.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+        const key = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}`; // YYYY-MM
+        return { key, label: monthName };
+      }
+      // "all"
+      const yearStr = dateObj.getFullYear().toString();
+      return { key: yearStr, label: yearStr };
+    };
+
+    // 1. Process sales income
+    orders.forEach((order: any) => {
+      const isCompleted = order.status === "completed" || order.status === "served";
+      if (!isCompleted) return;
+
+      const orderDate = new Date(order.created_at);
+      const { key, label } = getGroupKeyAndLabel(orderDate);
+
+      if (!groups[key]) {
+        groups[key] = { label, income: 0, expenses: 0 };
+      }
+      groups[key].income += Number(order.total_amount || 0);
+    });
+
+    // 2. Process expenses
+    expenses.forEach((exp: any) => {
+      const expDate = new Date(exp.date);
+      const { key, label } = getGroupKeyAndLabel(expDate);
+
+      if (!groups[key]) {
+        groups[key] = { label, income: 0, expenses: 0 };
+      }
+      groups[key].expenses += Number(exp.amount || 0);
+    });
+
+    // Convert groups record to an array and sort
+    const list = Object.entries(groups).map(([key, data]) => ({
+      id: key,
+      label: data.label,
+      income: data.income,
+      expenses: data.expenses,
+      profit: data.income - data.expenses,
+    }));
+
+    return list.sort((a, b) => b.id.localeCompare(a.id));
+  }, [orders, expenses, dateFilter]);
 
   // Export to Excel (CSV)
   const handleExportCSV = () => {
@@ -221,7 +292,13 @@ export default function MoneyManagementPage() {
           {/* Timeframe selector */}
           <div className="flex items-center gap-1.5 bg-card border border-border/80 rounded-lg px-2 py-1">
             <Calendar className="size-4 text-muted-foreground" />
-            <Select value={dateFilter} onValueChange={setDateFilter}>
+            <Select value={dateFilter} onValueChange={(val) => {
+              setDateFilter(val);
+              // Auto-toggle to summary view for week/month/year grouping
+              if (val !== "today" && val !== "all") {
+                setViewMode("summary");
+              }
+            }}>
               <SelectTrigger className="border-0 shadow-none focus:ring-0 h-8 text-xs font-semibold w-28 bg-transparent">
                 <SelectValue placeholder="Timeframe" />
               </SelectTrigger>
@@ -303,18 +380,56 @@ export default function MoneyManagementPage() {
         </Card>
       </div>
 
-      {/* Advanced Table view for Expenses */}
-      <div>
-        <h4 className="text-md font-bold mb-3 text-muted-foreground">Expenses Ledger ({expenses.length})</h4>
-        <AdvancedTable
-          columns={columns}
-          data={expenses}
-          addButton={{
-            text: "Record Expense",
-            onClick: () => setDialog({ open: true, id: "new" }),
-          }}
-          row_click={(id) => setDialog({ open: true, id: id || "" })}
-        />
+      {/* Main Datatable display */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/40 pb-2">
+          {/* Toggles */}
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant={viewMode === "summary" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("summary")}
+              className="text-xs font-semibold flex items-center gap-1.5 h-8.5"
+            >
+              <Layers className="size-3.5" /> Financial Summary
+            </Button>
+            <Button
+              variant={viewMode === "expenses" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("expenses")}
+              className="text-xs font-semibold flex items-center gap-1.5 h-8.5"
+            >
+              <FileText className="size-3.5" /> Expenses Ledger
+            </Button>
+          </div>
+
+          <Button
+            size="sm"
+            onClick={() => setDialog({ open: true, id: "new" })}
+            className="text-xs font-bold h-8.5"
+          >
+            Record Expense
+          </Button>
+        </div>
+
+        {viewMode === "summary" ? (
+          <div>
+            <h4 className="text-sm font-bold mb-3 text-muted-foreground">Grouped Profit Summary ({groupedSummaryData.length})</h4>
+            <AdvancedTable
+              columns={sumCols}
+              data={groupedSummaryData}
+            />
+          </div>
+        ) : (
+          <div>
+            <h4 className="text-sm font-bold mb-3 text-muted-foreground">Expenses Ledger ({expenses.length})</h4>
+            <AdvancedTable
+              columns={expCols}
+              data={expenses}
+              row_click={(id) => setDialog({ open: true, id: id || "" })}
+            />
+          </div>
+        )}
       </div>
 
       <Dialog open={dialog.open} onOpenChange={(open) => setDialog((prev) => ({ ...prev, open }))}>
