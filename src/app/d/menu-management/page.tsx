@@ -4,7 +4,10 @@ import React, { useMemo, useState } from "react";
 import { column } from "./menu";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { MenuForm } from "./menu-form";
-import { useGetResourceQuery, useGetResourceByIdQuery } from "@/store/services/flexible-querry";
+import {
+  useGetResourceQuery,
+  useGetResourceByIdQuery,
+} from "@/store/services/flexible-querry";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ChefHat } from "lucide-react";
@@ -36,28 +39,33 @@ const formatCurrency = (amount: number) => {
 };
 
 const Page = () => {
+  // Get active tenant subscription tier
+  const userStr =
+    typeof window !== "undefined" ? localStorage.getItem("user") : null;
+  const user = userStr ? JSON.parse(userStr) : null;
+  const tenantId = user?.tenant_id;
+
   const columns = column();
   const [dialog, setDialog] = useState({
     open: false,
     id: "",
   });
-  const { data, refetch } = useGetResourceQuery({
-    resource: "menu_item",
-    params: {
-      select: "*, category(name)",
+  const { data, refetch } = useGetResourceQuery(
+    {
+      resource: "menu_item",
+      params: {
+        select: "*, category(name)",
+        tenant_id: tenantId,
+      },
     },
-  });
-  
-  // Get active tenant subscription tier
-  const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
-  const user = userStr ? JSON.parse(userStr) : null;
-  const tenantId = user?.tenant_id;
-  
+    { skip: !tenantId },
+  );
+
   const { data: tenantData } = useGetResourceByIdQuery(
     { resource: "tenant", id: tenantId! },
-    { skip: !tenantId }
+    { skip: !tenantId },
   );
-  
+
   const menuData = useMemo(() => {
     return (
       data?.data.map((item) => ({
@@ -79,7 +87,9 @@ const Page = () => {
           onClick: () => {
             const tier = tenantData?.data?.subscription_tier || "free";
             if (tier === "free" && menuData.length >= 5) {
-              toast.error("You've reached the free tier limit of 5 menu items. Please upgrade to Pro to add more!");
+              toast.error(
+                "You've reached the free tier limit of 5 menu items. Please upgrade to Pro to add more!",
+              );
               return;
             }
             setDialog((prev) => ({ ...prev, open: true, id: "new" }));
