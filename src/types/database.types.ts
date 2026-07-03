@@ -88,6 +88,44 @@ export type Database = {
           },
         ]
       }
+      expense: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          tenant_id: string
+        }
+        Insert: {
+          amount?: number
+          category: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_item: {
         Row: {
           category_id: string | null
@@ -212,43 +250,40 @@ export type Database = {
             referencedRelation: "menu_variant"
             referencedColumns: ["id"]
           },
-      expense: {
+        ]
+      }
+      money_transaction: {
         Row: {
+          amount: number
+          category: string
+          created_at: string
+          date: string
+          description: string | null
           id: string
           tenant_id: string
-          amount: number
-          category: string
-          description: string | null
-          date: string
-          created_at: string
+          type: string
         }
         Insert: {
+          amount?: number
+          category: string
+          created_at?: string
+          date?: string
+          description?: string | null
           id?: string
           tenant_id: string
-          amount: number
-          category: string
-          description?: string | null
-          date?: string
-          created_at?: string
+          type: string
         }
         Update: {
-          id?: string
-          tenant_id?: string
           amount?: number
           category?: string
-          description?: string | null
-          date?: string
           created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          tenant_id?: string
+          type?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "expense_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenant"
-            referencedColumns: ["id"]
-          }
-        ]
+        Relationships: []
       }
       order_item: {
         Row: {
@@ -643,6 +678,7 @@ export type Database = {
       fn_is_superadmin: { Args: never; Returns: boolean }
       fn_my_role: { Args: never; Returns: string }
       fn_my_tenant_id: { Args: never; Returns: string }
+      get_current_tenant_id: { Args: never; Returns: string }
       get_session_tenant_id: { Args: never; Returns: string }
       get_user_tenant_id: { Args: never; Returns: string }
       initialize_new_organization: {

@@ -7,16 +7,28 @@ const supabase = createClient();
 type PublicSchema = Database["public"];
 export type TableName = keyof PublicSchema["Tables"];
 
-export type Row<T extends TableName> = PublicSchema["Tables"][T]["Row"];
-export type InsertRow<T extends TableName> =
-  PublicSchema["Tables"][T]["Insert"];
-export type UpdateRow<T extends TableName> =
-  PublicSchema["Tables"][T]["Update"];
+export type Row<T extends TableName> = Database["public"]["Tables"][T] extends {
+  Row: infer R;
+}
+  ? R
+  : never;
+
+export type InsertRow<T extends TableName> = Database["public"]["Tables"][T] extends {
+  Insert: infer I;
+}
+  ? I
+  : never;
+
+export type UpdateRow<T extends TableName> = Database["public"]["Tables"][T] extends {
+  Update: infer U;
+}
+  ? U
+  : never;
 
 type QueryParams<T extends TableName> = {
   [K in keyof Row<T>]?: Row<T>[K] | Row<T>[K][];
 } & {
-  sort?: keyof Row<T> & string;
+  sort?: string;
   order?: "asc" | "desc";
   select?: string;
 } & {
