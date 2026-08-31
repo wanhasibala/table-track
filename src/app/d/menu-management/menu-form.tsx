@@ -39,15 +39,16 @@ export const MenuForm = ({
   const { data: menuItemsData } = useGetResourceQuery({
     resource: "menu_item",
   });
-  
+
   // Get active tenant subscription tier
-  const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+  const userStr =
+    typeof window !== "undefined" ? localStorage.getItem("user") : null;
   const user = userStr ? JSON.parse(userStr) : null;
   const tenantId = user?.tenant_id;
-  
+
   const { data: tenantData } = useGetResourceByIdQuery(
     { resource: "tenant", id: tenantId! },
-    { skip: !tenantId }
+    { skip: !tenantId },
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,7 +65,7 @@ export const MenuForm = ({
               return response;
             }
             return img;
-          })
+          }),
         );
         data.image_url = uploadedUrls;
       } else if (data.image_url instanceof File) {
@@ -79,10 +80,12 @@ export const MenuForm = ({
         const tier = tenantData?.data?.subscription_tier || "free";
         const count = menuItemsData?.data?.length || 0;
         if (tier === "free" && count >= 5) {
-          toast.error("You've reached the free tier limit of 5 menu items. Please upgrade to Pro to add more!");
+          toast.error(
+            "You've reached the free tier limit of 5 menu items. Please upgrade to Pro to add more!",
+          );
           return;
         }
-        
+
         await create({
           resource: "menu_item",
           body: data,
@@ -129,7 +132,7 @@ export const MenuForm = ({
             }
           },
         },
-        { label: "Price", name: "price", type: "number" },
+        { label: "Price", name: "price", type: "money" },
         { label: "Stock", name: "stock", type: "number" },
       ]}
       onSubmit={handleSubmit}

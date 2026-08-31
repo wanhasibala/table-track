@@ -10,5 +10,17 @@ export const column = () => {
     available: true,
     stock: 0,
   };
-  return createTableColumns(sampleData);
+  return createTableColumns(sampleData, {
+    customColumns: {
+      price: {
+        cell(value) {
+          return new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+            minimumFractionDigits: 0,
+          }).format(Number(value));
+        },
+      },
+    },
+  });
 };

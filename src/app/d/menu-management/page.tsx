@@ -188,7 +188,7 @@ const Page = () => {
         open={dialog.open}
         onOpenChange={(open) => setDialog((prev) => ({ ...prev, open }))}
       >
-        <DialogContent>
+        <DialogContent className="overflow-y-auto max-h-[80vh]">
           <DialogTitle>Edit Menu</DialogTitle>
           <MenuForm
             id={dialog.id}

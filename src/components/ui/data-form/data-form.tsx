@@ -4,6 +4,7 @@
 import * as React from "react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form";
+import { NumericFormat } from "react-number-format";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -67,6 +68,7 @@ import {
 
 export type FieldType =
   | "text"
+  | "money"
   | "number"
   | "date"
   | "select"
@@ -243,6 +245,7 @@ export type TableColumnConfig = {
   type?:
     | "text"
     | "number"
+    | "money"
     | "date"
     | "month"
     | "select"
@@ -566,11 +569,15 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                 .array(z.any())
                 .min(1, "At least one image is required")
                 .refine((val) => {
-                  return Array.isArray(val) && val.length > 0 && val.every((v) => {
-                    if (v instanceof File) return v.size > 0;
-                    if (typeof v === "string") return v.trim().length > 0;
-                    return false;
-                  });
+                  return (
+                    Array.isArray(val) &&
+                    val.length > 0 &&
+                    val.every((v) => {
+                      if (v instanceof File) return v.size > 0;
+                      if (typeof v === "string") return v.trim().length > 0;
+                      return false;
+                    })
+                  );
                 }, "All items must be valid images")
             : z.array(z.any()).optional().default([]);
         } else if (field.type === "radio") {
@@ -666,6 +673,40 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                     !val ||
                     String(val).length <= field.validation.maxLength,
                   `Maximum length is ${field.validation?.maxLength}`,
+                ),
+            );
+        } else if (field.type === "money") {
+          schema = z
+            .union([z.string(), z.number()])
+            .transform((val) => {
+              if (typeof val === "string") {
+                return val === "" ? undefined : parseFloat(val);
+              }
+              if (typeof val === "number") {
+                return val;
+              }
+              return parseFloat(val);
+            })
+            .pipe(
+              (z.number().optional() as any)
+                .refine(
+                  (val: any) =>
+                    !field.validation?.required || val !== undefined,
+                  "This field is required",
+                )
+                .refine(
+                  (val: any) =>
+                    !field.validation?.min ||
+                    val === undefined ||
+                    val >= field.validation.min,
+                  `Minimum value is ${field.validation?.min}`,
+                )
+                .refine(
+                  (val: any) =>
+                    !field.validation?.max ||
+                    val === undefined ||
+                    val <= field.validation.max,
+                  `Maximum value is ${field.validation?.max}`,
                 ),
             );
         } else if (field.type === "date") {
@@ -872,12 +913,16 @@ export function DataForm<TFieldValues extends Record<string, any>>({
             if (typeof field.savedFiles === "string") {
               try {
                 const parsed = JSON.parse(field.savedFiles);
-                defaults[field.name] = Array.isArray(parsed) ? parsed : [field.savedFiles];
+                defaults[field.name] = Array.isArray(parsed)
+                  ? parsed
+                  : [field.savedFiles];
               } catch (e) {
                 defaults[field.name] = [field.savedFiles];
               }
             } else if (Array.isArray(field.savedFiles)) {
-              defaults[field.name] = field.savedFiles.map((f: any) => typeof f === "object" && f.url ? f.url : f);
+              defaults[field.name] = field.savedFiles.map((f: any) =>
+                typeof f === "object" && f.url ? f.url : f,
+              );
             } else {
               defaults[field.name] = [];
             }
@@ -887,7 +932,9 @@ export function DataForm<TFieldValues extends Record<string, any>>({
         } else if (typeof defaults[field.name] === "string") {
           try {
             const parsed = JSON.parse(defaults[field.name]);
-            defaults[field.name] = Array.isArray(parsed) ? parsed : [defaults[field.name]];
+            defaults[field.name] = Array.isArray(parsed)
+              ? parsed
+              : [defaults[field.name]];
           } catch (e) {
             defaults[field.name] = [defaults[field.name]];
           }
@@ -1567,6 +1614,46 @@ export function DataForm<TFieldValues extends Record<string, any>>({
                   />
                 </div>
               );
+            case "money":
+              return (
+                <NumericFormat
+                  customInput={Input}
+                  value={row[col.value] ?? ""}
+                  thousandSeparator="."
+                  decimalSeparator=","
+                  prefix="Rp "
+                  allowNegative={false}
+                  inputMode="numeric"
+                  placeholder="Rp 0"
+                  disabled={isFieldDisabled || col.disabled}
+                  onValueChange={(values) => {
+                    const newData = [...tableData];
+                    const numValue = values.floatValue ?? 0;
+                    newData[rowIndex] = {
+                      ...newData[rowIndex],
+                      [col.value]: numValue,
+                    };
+                    form.setValue(field.name, newData, {
+                      shouldValidate: true,
+                    });
+
+                    // Call custom onChange if provided
+                    if (col.onChange) {
+                      const updateRow = (updates: any) => {
+                        const updatedData = [...tableData];
+                        updatedData[rowIndex] = {
+                          ...updatedData[rowIndex],
+                          ...updates,
+                        };
+                        form.setValue(field.name, updatedData, {
+                          shouldValidate: true,
+                        });
+                      };
+                      col.onChange(numValue, rowIndex, updateRow);
+                    }
+                  }}
+                />
+              );
             case "number":
               return (
                 <Input
@@ -2103,6 +2190,31 @@ export function DataForm<TFieldValues extends Record<string, any>>({
           </div>
         );
       }
+      case "money":
+        return (
+          <NumericFormat
+            customInput={Input}
+            value={(form.getValues(field.name) as any) ?? ""}
+            thousandSeparator="."
+            decimalSeparator=","
+            prefix="Rp "
+            allowNegative={false}
+            inputMode="numeric"
+            placeholder={field.placeholder || "Rp 0"}
+            className="w-full mt-2"
+            disabled={isFieldDisabled}
+            onValueChange={(values) => {
+              form.setValue(field.name, values.floatValue ?? "", {
+                shouldValidate: true,
+                shouldDirty: true,
+                shouldTouch: true,
+              });
+              if (field.onChange) {
+                field.onChange(values.floatValue ?? "", form);
+              }
+            }}
+          />
+        );
       case "separator":
         return null;
       default:
@@ -2382,7 +2494,9 @@ const ImageField = ({
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => document.getElementById(`image-input-${field.name}`)?.click()}
+                onClick={() =>
+                  document.getElementById(`image-input-${field.name}`)?.click()
+                }
               >
                 Change
               </Button>
@@ -2399,13 +2513,17 @@ const ImageField = ({
         ) : (
           <div
             className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground"
-            onClick={() => document.getElementById(`image-input-${field.name}`)?.click()}
+            onClick={() =>
+              document.getElementById(`image-input-${field.name}`)?.click()
+            }
           >
             <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-2">
               <Plus className="h-5 w-5 text-muted-foreground" />
             </div>
             <span className="text-sm font-medium">Click to upload image</span>
-            <span className="text-xs text-muted-foreground mt-1">Supports PNG, JPG, GIF up to 5MB</span>
+            <span className="text-xs text-muted-foreground mt-1">
+              Supports PNG, JPG, GIF up to 5MB
+            </span>
           </div>
         )}
         <input
@@ -2492,7 +2610,10 @@ const ImagesField = ({
           <Carousel className="w-full">
             <CarouselContent>
               {previewUrls.map((url, index) => (
-                <CarouselItem key={index} className="relative aspect-[16/9] w-full flex items-center justify-center bg-black/5">
+                <CarouselItem
+                  key={index}
+                  className="relative aspect-[16/9] w-full flex items-center justify-center bg-black/5"
+                >
                   <img
                     src={url}
                     alt={`${field.label} preview ${index + 1}`}
