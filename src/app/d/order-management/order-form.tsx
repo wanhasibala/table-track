@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, ShoppingBag, Printer } from "lucide-react";
+import { Plus, Trash2, ShoppingBag, Printer, Share2, Check, Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +37,7 @@ export const OrderForm = ({
   const [loading, setLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const [tenantId, setTenantId] = useState("");
   const [menuItems, setMenuItems] = useState<any[]>([]);
@@ -49,6 +50,40 @@ export const OrderForm = ({
   const [handledBy, setHandledBy] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<any[]>([]);
+
+  const copyStatusUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success("Order status link copied to clipboard!");
+      setTimeout(() => setCopied(false), 2500);
+    } catch (err) {
+      toast.error("Failed to copy order status link.");
+    }
+  };
+
+  const handleShareStatus = async () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const statusUrl = `${origin}/order/status?order_id=${id}`;
+    const shareData = {
+      title: `Order Status Tracking #${id.slice(0, 8).toUpperCase()}`,
+      text: `Hello ${customerName || "Customer"}, here is your live order tracking link:`,
+      url: statusUrl,
+    };
+
+    if (typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        toast.success("Order link shared!");
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          await copyStatusUrl(statusUrl);
+        }
+      }
+    } else {
+      await copyStatusUrl(statusUrl);
+    }
+  };
 
   // 1. Load Metadata (Tenant, Menu Items with nested variants & options)
   useEffect(() => {
@@ -648,6 +683,46 @@ export const OrderForm = ({
                 rows={3}
               />
             </div>
+
+            {/* Customer Tracking Link (for existing orders) */}
+            {!isNew && (
+              <div className="p-3 bg-muted/40 border border-border/60 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+                    <Share2 className="h-3 w-3 text-primary" /> Live Order Tracking
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const origin = typeof window !== "undefined" ? window.location.origin : "";
+                      window.open(`${origin}/order/status?order_id=${id}`, "_blank");
+                    }}
+                    className="text-[10px] text-primary font-bold hover:underline flex items-center gap-0.5"
+                  >
+                    <span>Open</span>
+                    <ExternalLink className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    value={typeof window !== "undefined" ? `${window.location.origin}/order/status?order_id=${id}` : ""}
+                    className="h-8 text-xs font-mono bg-background select-all"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleShareStatus}
+                    className="h-8 px-2.5 text-xs font-bold flex-shrink-0 gap-1"
+                    title="Share or Copy Link"
+                  >
+                    {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Share2 className="h-3.5 w-3.5" />}
+                    <span>{copied ? "Copied" : "Share"}</span>
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
 
@@ -804,15 +879,28 @@ export const OrderForm = ({
         )}
         <div className="flex gap-2 ml-auto">
           {!isNew && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handlePrintReceipt}
-              disabled={submitLoading || deleteLoading}
-              className="flex items-center gap-2"
-            >
-              <Printer className="h-4 w-4" /> Print Receipt
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleShareStatus}
+                disabled={submitLoading || deleteLoading}
+                className="flex items-center gap-2"
+                title="Share or copy order tracking link"
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4 text-primary" />}
+                <span>{copied ? "Link Copied!" : "Share Status"}</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrintReceipt}
+                disabled={submitLoading || deleteLoading}
+                className="flex items-center gap-2"
+              >
+                <Printer className="h-4 w-4" /> Print Receipt
+              </Button>
+            </>
           )}
           <Button
             type="submit"

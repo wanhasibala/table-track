@@ -236,18 +236,37 @@ export default function OrderMenuPage() {
         if (tenantError) throw tenantError;
         setTenant(tenantData);
 
-        // 2. Fetch Table Spot (only if tableId is a valid UUID and not "new-order")
-        const isUuid =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            tableId,
-          );
-        if (tableId && tableId !== "new-order" && isUuid) {
-          const { data: tableData } = await supabase
+        if (!tenantData) {
+          setLoading(false);
+          return;
+        }
+
+        // 2. Fetch Table Spot (by UUID or name)
+        if (tableId && tableId !== "new-order") {
+          const isUuid =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+              tableId,
+            );
+          
+          let tableQuery = supabase
             .from("table_spot")
             .select("*")
-            .eq("id", tableId)
-            .single();
-          setTableSpot(tableData);
+            .eq("tenant_id", tenantData.id);
+
+          if (isUuid) {
+            tableQuery = tableQuery.eq("id", tableId);
+          } else {
+            const formattedName = tableId.replace(/[-_]/g, " ").trim();
+            tableQuery = tableQuery.or(
+              `name.ilike.${tableId},name.ilike.${formattedName},name.ilike.Table ${tableId},name.ilike.Meja ${tableId}`
+            );
+          }
+
+          const { data: tableData } = await tableQuery.maybeSingle();
+          setTableSpot(tableData || null);
+          if (tableData) {
+            setOrderType("dine_in");
+          }
         } else {
           setTableSpot(null);
         }
@@ -439,7 +458,7 @@ export default function OrderMenuPage() {
       const supabase = createClient();
 
       const orderBody = {
-        table_id: tableId && tableId !== "new-order" && orderType === "dine_in" ? tableId : null,
+        table_id: orderType === "dine_in" ? (tableSpot?.id || (tableId !== "new-order" ? tableId : null)) : null,
         status: "pending" as const,
         notes: `${customerName.trim()}'s Online Order. Notes: ${orderNotes.trim() || "None"}`,
         customer_name: customerName.trim(),
@@ -485,7 +504,11 @@ export default function OrderMenuPage() {
       setIsCartOpen(false);
 
       // Redirect to real-time payment page
-      const isSubdomain = typeof window !== "undefined" && window.location.hostname.includes(slug);
+      const isSubdomain =
+        typeof window !== "undefined" &&
+        Boolean(slug) &&
+        window.location.hostname.startsWith(`${slug}.`);
+
       if (isSubdomain) {
         router.push(`/payment?order_id=${orderId}`);
       } else {
@@ -510,18 +533,32 @@ export default function OrderMenuPage() {
     );
   }
 
-  if (!tenant || tenant.subscription_tier !== "pro") {
+  if (!tenant) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white p-6 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
         <div className="max-w-md space-y-4">
-          <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center mx-auto text-red-500">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto text-muted-foreground">
+            <UtensilsCrossed className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-100 font-sans">Menu Offline</h2>
-          <p className="text-slate-400 text-sm font-sans leading-relaxed">
-            This restaurant's digital menu is currently offline. If you are the store owner, please check your subscription status in the TableTrack dashboard.
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Restaurant Not Found</h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            We couldn&apos;t find a restaurant matching &ldquo;{slug}&rdquo;. Please verify the URL or scan the QR code again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (tenant.is_active === false) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
+        <div className="max-w-md space-y-4">
+          <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto text-amber-500">
+            <UtensilsCrossed className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Temporarily Closed</h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            {tenant.name} is currently not accepting online orders. Please check back later.
           </p>
         </div>
       </div>

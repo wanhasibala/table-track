@@ -12,7 +12,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   Sparkles,
-  ShoppingBag
+  ShoppingBag,
+  Share2,
+  Check,
+  Copy
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
@@ -43,15 +46,52 @@ export default function OrderStatusPage() {
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [currentStatus, setCurrentStatus] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   const { permission, registerToken, loading: pushLoading } = usePushNotifications();
 
   const slug = order?.tenant?.slug || "";
   const tableId = order?.table_id || "new-order";
-  const isSubdomain = typeof window !== "undefined" && slug && window.location.hostname.includes(slug);
+  const isSubdomain =
+    typeof window !== "undefined" &&
+    Boolean(slug) &&
+    window.location.hostname.startsWith(`${slug}.`);
   const menuUrl = isSubdomain 
     ? (tableId === "new-order" ? "/" : `/${tableId}`)
     : `/order/${slug}/${tableId}`;
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success("Order status link copied to clipboard!");
+      setTimeout(() => setCopied(false), 2500);
+    } catch (err) {
+      toast.error("Failed to copy link to clipboard.");
+    }
+  };
+
+  const handleShare = async () => {
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+    const shareData = {
+      title: `${order?.tenant?.name || "Order"} Tracking - #${order?.id?.slice(0, 8).toUpperCase()}`,
+      text: `Track your order from ${order?.tenant?.name || "TableTrack"}:`,
+      url: shareUrl,
+    };
+
+    if (typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        toast.success("Order link shared successfully!");
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          await copyToClipboard(shareUrl);
+        }
+      }
+    } else {
+      await copyToClipboard(shareUrl);
+    }
+  };
 
   useEffect(() => {
     if (!orderId) {
@@ -161,9 +201,19 @@ export default function OrderStatusPage() {
             <ArrowLeft className="h-4 w-4" />
             Back to Menu
           </button>
-          <span className="text-xs font-bold text-muted-foreground font-mono">
-            #{order.id.slice(0, 8).toUpperCase()}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold transition-all active:scale-95 shadow-xs"
+              title="Share order status"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+              <span>{copied ? "Copied" : "Share"}</span>
+            </button>
+            <span className="text-xs font-bold text-muted-foreground font-mono">
+              #{order.id.slice(0, 8).toUpperCase()}
+            </span>
+          </div>
         </div>
       </header>
  
@@ -250,6 +300,34 @@ export default function OrderStatusPage() {
               })}
             </div>
           )}
+        </div>
+
+        {/* Share Order Tracking Banner */}
+        <div className="bg-card rounded-2xl border border-border/80 p-5 shadow-sm space-y-3 flex items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="space-y-1">
+            <h4 className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
+              <Share2 className="h-4 w-4 text-primary" /> Share Order Status
+            </h4>
+            <p className="text-xs text-muted-foreground leading-normal max-w-[280px]">
+              Share this live order status link with your friends or tablemates to track food preparation.
+            </p>
+          </div>
+          <button
+            onClick={handleShare}
+            className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 flex-shrink-0 active:scale-95"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5" />
+                <span>Copied!</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="h-3.5 w-3.5" />
+                <span>Share Link</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Push Notification Promo Banner */}

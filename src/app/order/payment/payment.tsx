@@ -102,7 +102,10 @@ export default function PaymentPage() {
   const dynamicQrisPayload = order ? generateDynamicQRIS(qrisPayloadBase, order.total_amount) : "";
   
   const slug = order?.tenant?.slug || "";
-  const isSubdomain = typeof window !== "undefined" && slug && window.location.hostname.includes(slug);
+  const isSubdomain =
+    typeof window !== "undefined" &&
+    Boolean(slug) &&
+    window.location.hostname.startsWith(`${slug}.`);
 
   const redirectToStatus = () => {
     if (isSubdomain) {
@@ -151,7 +154,11 @@ export default function PaymentPage() {
           // If already paid, redirect straight to status
           if (payData.status === "paid" || orderData.status !== "pending") {
             const orderSlug = orderData?.tenant?.slug || "";
-            const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
+            const currentIsSubdomain =
+              typeof window !== "undefined" &&
+              Boolean(orderSlug) &&
+              window.location.hostname.startsWith(`${orderSlug}.`);
+
             if (currentIsSubdomain) {
               router.push(`/status?order_id=${orderId}`);
             } else {
@@ -189,7 +196,11 @@ export default function PaymentPage() {
                 toast.success("Payment confirmed by Cashier!");
                 setTimeout(() => {
                   const orderSlug = updatedOrder?.tenant?.slug || "";
-                  const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
+                  const currentIsSubdomain =
+                    typeof window !== "undefined" &&
+                    Boolean(orderSlug) &&
+                    window.location.hostname.startsWith(`${orderSlug}.`);
+
                   if (currentIsSubdomain) {
                     router.push(`/status?order_id=${orderId}`);
                   } else {
@@ -223,7 +234,11 @@ export default function PaymentPage() {
                 toast.success("Payment verified successfully!");
                 setTimeout(() => {
                   const orderSlug = order?.tenant?.slug || "";
-                  const currentIsSubdomain = typeof window !== "undefined" && orderSlug && window.location.hostname.includes(orderSlug);
+                  const currentIsSubdomain =
+                    typeof window !== "undefined" &&
+                    Boolean(orderSlug) &&
+                    window.location.hostname.startsWith(`${orderSlug}.`);
+
                   if (currentIsSubdomain) {
                     router.push(`/status?order_id=${orderId}`);
                   } else {
@@ -242,7 +257,7 @@ export default function PaymentPage() {
       supabase.removeChannel(orderChannel);
       supabase.removeChannel(paymentChannel);
     };
-  }, [orderId, order, isSubdomain]);
+  }, [orderId, router]);
 
   // QRIS Countdown Timer
   useEffect(() => {

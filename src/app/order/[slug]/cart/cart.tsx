@@ -12,7 +12,11 @@ export default function CartPageRedirect() {
     const tableId = searchParams.get("tableId") || searchParams.get("table_id") || "new-order";
     
     if (slug) {
-      const isSubdomain = typeof window !== "undefined" && window.location.hostname.includes(slug as string);
+      const isSubdomain =
+        typeof window !== "undefined" &&
+        Boolean(slug) &&
+        window.location.hostname.startsWith(`${slug}.`);
+
       if (isSubdomain) {
         const targetPath = tableId === "new-order" ? "/" : `/${tableId}`;
         router.replace(targetPath);

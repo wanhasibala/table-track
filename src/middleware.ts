@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
 
   // 1. Define your main production domains and local dev hosts
-  const mainDomains = ["table-track-id.vercel.app", "table-track-id.vercel.app", "localhost:3000", "localhost"];
+  const mainDomains = ["table-track-id.vercel.app", "localhost:3000", "localhost"];
   
   // Clean up hostname by stripping the port
   let currentHost = hostname;
@@ -18,25 +18,32 @@ export async function middleware(request: NextRequest) {
     currentHost = currentHost.split(":")[0];
   }
 
-  // 2. Check if we are on a main domain or testing subdomains locally
-  const isMainDomain = mainDomains.some(domain => 
-    currentHost === domain || currentHost === `www.${domain}`
-  ) && !currentHost.endsWith(".localhost");
+  // 2. Check if we are on a main domain, testing locally, or on a Vercel deployment (*.vercel.app)
+  const isMainDomain = 
+    mainDomains.some(domain => currentHost === domain || currentHost === `www.${domain}`) ||
+    currentHost.endsWith(".vercel.app") ||
+    currentHost === "localhost" ||
+    !currentHost.includes(".");
 
   const pathname = url.pathname;
 
-  // 3. Handle path-based /order/[slug] without tableId (redirect to /order/[slug]/new-order)
+  // 3. Handle path-based /order routes
   if (pathname === "/order" || pathname.startsWith("/order/")) {
     const pathParts = pathname.split("/").filter(Boolean);
-    // pathParts: ["order", "slug"]
-    if (pathParts.length === 2) {
+    // Reserved routes directly under /order that should NOT be redirected as slugs
+    const reservedOrderRoutes = ["payment", "status"];
+    
+    // pathParts: ["order", "slug"] -> redirect to /order/slug/new-order if not reserved
+    if (pathParts.length === 2 && !reservedOrderRoutes.includes(pathParts[1])) {
       const slug = pathParts[1];
       url.pathname = `/order/${slug}/new-order`;
       return NextResponse.redirect(url);
     }
+    
+    return NextResponse.next();
   }
 
-  // 4. Extract the tenant slug/subdomain
+  // 4. Extract the tenant slug/subdomain (only for custom domains with wildcard subdomains)
   let subdomain = "";
   if (!isMainDomain) {
     const parts = currentHost.split(".");

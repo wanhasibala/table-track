@@ -99,9 +99,13 @@ export default function TableManagementPage() {
         }}
         view="list"
         listRender={(item) => {
-          const baseDomain = getBaseDomain();
-          // Construct table URL: e.g. http://misenary.localhost:3000/table-1
-          const tableUrl = `${window.location.protocol}//${tenantSlug}.${baseDomain}/${item.id}`;
+          const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+          const host = typeof window !== "undefined" ? window.location.host : "localhost:3000";
+          const isSubdomain = typeof window !== "undefined" && Boolean(tenantSlug) && host.startsWith(`${tenantSlug}.`);
+          
+          const tableUrl = isSubdomain
+            ? `${origin}/${item.id}`
+            : `${origin}/order/${tenantSlug}/${item.id}`;
           const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(tableUrl)}`;
 
           return (
