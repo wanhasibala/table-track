@@ -14,10 +14,13 @@ import {
   Clock, 
   Loader2, 
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Download,
+  Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFileUpload } from "@/hooks/use-file-upload";
+import { parseOrderSchedule } from "@/utils/order-schedule";
 
 
 const formatCurrency = (amount: number) => {
@@ -85,10 +88,18 @@ export default function PaymentPage() {
   const [tenant, setTenant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Payment Selection States
-  const [paymentMethod, setPaymentMethod] = useState<"qris" | "online" | "cash">("qris");
+  // Payment Selection States - Transfer ("online") by default
+  const [paymentMethod, setPaymentMethod] = useState<"online" | "qris" | "cash">("online");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentRecord, setPaymentRecord] = useState<any>(null);
+
+  const hasQris = Boolean(tenant?.qris_image_url);
+
+  useEffect(() => {
+    if (!hasQris && paymentMethod === "qris") {
+      setPaymentMethod("online");
+    }
+  }, [hasQris, paymentMethod]);
   
   // File upload states
   const { uploadFile } = useFileUpload();
@@ -392,6 +403,21 @@ export default function PaymentPage() {
               <span>Delivery Option</span>
               <span className="font-bold text-foreground capitalize">{order.type?.replace("_", " ")}</span>
             </div>
+            {(() => {
+              const schedule = parseOrderSchedule(order);
+              if (!schedule.isScheduled) return null;
+              return (
+                <div className="flex justify-between items-center p-2.5 bg-purple-500/10 border border-purple-500/25 rounded-xl text-xs">
+                  <span className="font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Scheduled For:
+                  </span>
+                  <span className="font-bold text-foreground">
+                    {schedule.formattedSchedule}
+                  </span>
+                </div>
+              );
+            })()}
             {order.type === "delivery" && order.delivery_address && (
               <div className="p-2.5 bg-muted/30 border border-border/40 rounded-xl mt-1 leading-normal">
                 <span className="font-bold text-foreground block mb-0.5">Address:</span>
@@ -466,23 +492,8 @@ export default function PaymentPage() {
                 Select Payment Method
               </h3>
 
-              <div className="grid grid-cols-3 gap-3">
-                {/* QRIS */}
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("qris")}
-                  className={cn(
-                    "p-4 rounded-2xl border-2 flex flex-col items-center gap-2 bg-card hover:bg-muted/10 transition-all",
-                    paymentMethod === "qris" 
-                      ? "border-primary bg-primary/5 text-primary shadow-xs" 
-                      : "border-border/60 text-muted-foreground"
-                  )}
-                >
-                  <QrCode className="h-6 w-6" />
-                  <span className="text-xs font-bold">QRIS Code</span>
-                </button>
-
-                {/* Bank Transfer */}
+              <div className={cn("grid gap-3", hasQris ? "grid-cols-3" : "grid-cols-2")}>
+                {/* 1. Bank Transfer (First) */}
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("online")}
@@ -497,7 +508,24 @@ export default function PaymentPage() {
                   <span className="text-xs font-bold">Transfer</span>
                 </button>
 
-                {/* Cash */}
+                {/* 2. QRIS (Only displayed if tenant uploaded a QRIS image) */}
+                {hasQris && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("qris")}
+                    className={cn(
+                      "p-4 rounded-2xl border-2 flex flex-col items-center gap-2 bg-card hover:bg-muted/10 transition-all",
+                      paymentMethod === "qris" 
+                        ? "border-primary bg-primary/5 text-primary shadow-xs" 
+                        : "border-border/60 text-muted-foreground"
+                    )}
+                  >
+                    <QrCode className="h-6 w-6" />
+                    <span className="text-xs font-bold">QRIS Code</span>
+                  </button>
+                )}
+
+                {/* 3. Cash */}
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("cash")}
@@ -519,45 +547,38 @@ export default function PaymentPage() {
             {/* Payment Method UI Details */}
             <div className="bg-card rounded-2xl border border-border/85 p-6 shadow-sm min-h-[220px] flex flex-col justify-between space-y-5">
               
-              {paymentMethod === "qris" && (
+              {paymentMethod === "qris" && hasQris && (
                 <div className="space-y-5 animate-in fade-in duration-200 flex flex-col items-center">
                   <div className="text-center space-y-1.5">
                     <h4 className="font-extrabold text-sm text-foreground">Scan QRIS Code to Pay</h4>
                     <p className="text-[11px] text-muted-foreground">
-                      Compatible with GoPay, GrabPay, OVO, ShopeePay, and all Indonesian Mobile Banking.
+                      {tenant?.payment_instructions ||
+                        "Compatible with GoPay, GrabPay, OVO, ShopeePay, BCA, and all Indonesian Mobile Banking."}
                     </p>
                   </div>
 
-                  {/* Dynamic QR Code from QRIS payload */}
-                  {dynamicQrisPayload && (
-                    <div className="flex flex-col items-center gap-3 animate-in zoom-in-95 duration-200">
-                      <div className="relative p-3.5 bg-white border border-slate-200 rounded-2xl shadow-inner max-w-[180px] w-full">
-                        <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(dynamicQrisPayload)}`}
-                          alt="Dynamic QRIS QR Code" 
-                          className="w-full h-auto object-contain rounded-lg"
-                        />
-                        {/* QRIS branding tag overlay */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="bg-white px-2 py-0.5 border border-slate-300 rounded font-black text-[9px] tracking-tight text-blue-900 shadow-sm">
-                            QRIS
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Copyable string option */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(dynamicQrisPayload);
-                          toast.success("QRIS payload copied to clipboard!");
-                        }}
-                        className="text-[10px] font-bold text-primary hover:underline"
-                      >
-                        Copy QRIS Text Payload
-                      </button>
+                  {/* Merchant uploaded QRIS image */}
+                  <div className="flex flex-col items-center gap-3 animate-in zoom-in-95 duration-200 w-full">
+                    <div className="relative p-3 bg-white border border-slate-200 dark:border-slate-700 rounded-2xl shadow-md max-w-[240px] w-full flex items-center justify-center">
+                      <img 
+                        src={tenant.qris_image_url} 
+                        alt={`${tenant.name || "Merchant"} QRIS Code`}
+                        className="w-full h-auto max-h-[260px] object-contain rounded-lg"
+                      />
                     </div>
-                  )}
+
+                    {/* Download / Open QRIS button */}
+                    <a
+                      href={tenant.qris_image_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download="qris-code.png"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline bg-primary/10 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Save / Open QRIS Image</span>
+                    </a>
+                  </div>
 
                   <div className="flex gap-4.5 justify-center items-center text-xs font-semibold text-muted-foreground bg-muted/40 px-4 py-2 rounded-xl">
                     <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-primary" /> Timeout:</span>

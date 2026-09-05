@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, ShoppingBag, Printer, Share2, Check, Copy, ExternalLink } from "lucide-react";
+import { Plus, Trash2, ShoppingBag, Printer, Share2, Check, Copy, ExternalLink, Calendar, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,6 +17,12 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  parseOrderSchedule,
+  cleanOrderNotes,
+  createScheduleNoteTag,
+  combineDateAndTimeToIso,
+} from "@/utils/order-schedule";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -50,6 +56,11 @@ export const OrderForm = ({
   const [handledBy, setHandledBy] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<any[]>([]);
+
+  // Schedule States
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("12:00");
 
   const copyStatusUrl = async (url: string) => {
     try {
@@ -147,12 +158,22 @@ export const OrderForm = ({
           .eq("id", id)
           .single();
         if (orderError) throw orderError;
-        
         setCustomerName(orderData.customer_name || "");
         setCustomerPhone(orderData.customer_phone || "");
         setStatus(orderData.status);
         setHandledBy(orderData.handled_by || "");
-        setNotes(orderData.notes || "");
+        setNotes(cleanOrderNotes(orderData.notes));
+
+        const schedule = parseOrderSchedule(orderData);
+        if (schedule.isScheduled) {
+          setIsScheduled(true);
+          setScheduleDate(schedule.scheduledDateStr || "");
+          setScheduleTime(schedule.scheduledTimeStr || "12:00");
+        } else {
+          setIsScheduled(false);
+          setScheduleDate("");
+          setScheduleTime("12:00");
+        }
         
         const { data: itemsData, error: itemsError } = await supabase
           .from("order_item")
@@ -292,30 +313,67 @@ export const OrderForm = ({
     setSubmitLoading(true);
     try {
       const supabase = createClient();
-      const orderBody = {
+
+      const scheduleIso =
+        isScheduled && scheduleDate
+          ? combineDateAndTimeToIso(scheduleDate, scheduleTime)
+          : null;
+      const schedulePrefix =
+        isScheduled && scheduleDate
+          ? `${createScheduleNoteTag(scheduleDate, scheduleTime)} `
+          : "";
+      const cleanedNotes = cleanOrderNotes(notes);
+      const finalNotes = `${schedulePrefix}${cleanedNotes}`.trim() || null;
+
+      const orderBody: any = {
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
         status: status as any,
         handled_by: handledBy || null,
-        notes: notes || null,
+        notes: finalNotes,
         total_amount: grandTotal,
         tenant_id: tenantId,
+        ...(scheduleIso
+          ? { scheduled_for: scheduleIso }
+          : { scheduled_for: null }),
       };
 
       let orderId = id;
       if (isNew) {
-        const { data: newOrder, error } = await supabase
+        let { data: newOrder, error } = await supabase
           .from("order_table")
           .insert(orderBody)
           .select()
           .single();
+
+        if (error && error.code === "PGRST204" && "scheduled_for" in orderBody) {
+          delete orderBody.scheduled_for;
+          const retry = await supabase
+            .from("order_table")
+            .insert(orderBody)
+            .select()
+            .single();
+          newOrder = retry.data;
+          error = retry.error;
+        }
+
         if (error) throw error;
         orderId = newOrder.id;
       } else {
-        const { error } = await supabase
+        let { error } = await supabase
           .from("order_table")
           .update(orderBody)
           .eq("id", id);
+
+        if (error && error.code === "PGRST204" && "scheduled_for" in orderBody) {
+          delete orderBody.scheduled_for;
+          const retry = await supabase
+            .from("order_table")
+            .update(orderBody)
+            .eq("id", id);
+          error = retry.error;
+        }
+
         if (error) throw error;
       }
 
@@ -539,6 +597,12 @@ export const OrderForm = ({
             <td>Date:</td>
             <td style="text-align: right;">${new Date().toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}</td>
           </tr>
+          ${isScheduled && scheduleDate ? `
+          <tr>
+            <td style="font-weight: bold;">SCHEDULED:</td>
+            <td style="text-align: right; font-weight: bold;">${scheduleDate} ${scheduleTime || ""}</td>
+          </tr>
+          ` : ""}
           <tr>
             <td>Customer:</td>
             <td style="text-align: right; font-weight: bold;">${customerName || "Walk-in Guest"}</td>
@@ -670,6 +734,63 @@ export const OrderForm = ({
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Schedule Order Timing */}
+            <div className="p-3 bg-muted/40 border border-border/70 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-foreground flex items-center gap-1.5 cursor-pointer">
+                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                  <span>Scheduled Order</span>
+                </label>
+                <input
+                  type="checkbox"
+                  checked={isScheduled}
+                  onChange={(e) => {
+                    setIsScheduled(e.target.checked);
+                    if (e.target.checked && !scheduleDate) {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 1);
+                      setScheduleDate(d.toISOString().split("T")[0]);
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary/20 cursor-pointer"
+                />
+              </div>
+
+              {isScheduled && (
+                <div className="space-y-2 pt-1 border-t border-border/50 animate-in fade-in duration-150">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                        Scheduled Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={scheduleDate}
+                        onChange={(e) => setScheduleDate(e.target.value)}
+                        className="h-8 text-xs font-mono bg-background"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                        Scheduled Time
+                      </label>
+                      <Input
+                        type="time"
+                        value={scheduleTime}
+                        onChange={(e) => setScheduleTime(e.target.value)}
+                        className="h-8 text-xs font-mono bg-background"
+                      />
+                    </div>
+                  </div>
+                  {scheduleDate && (
+                    <span className="text-[10px] text-primary font-medium block">
+                      Target: {scheduleDate} • {scheduleTime || "12:00"}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Notes */}

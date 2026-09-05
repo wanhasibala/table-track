@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { OrderForm } from "./order-form";
 import { useGetResourceQuery } from "@/store/services/flexible-querry";
 import { createClient } from "@/utils/supabase/client";
+import { parseOrderSchedule } from "@/utils/order-schedule";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -32,7 +33,8 @@ const Page = () => {
     startOfToday.setHours(0, 0, 0, 0);
 
     return {
-      select: "*, table_spot(name), user_account(name)",
+      select:
+        "*, table_spot(name), user_account(name), order_item(*, menu_item(*)) ",
       order: "desc" as const,
       sort: "created_at" as const,
       ...(filters.date === "today"
@@ -45,6 +47,23 @@ const Page = () => {
     resource: "order_table",
     params: queryParams,
   });
+
+  const tableData = useMemo(() => {
+    if (!data?.data) return [];
+    let items = data.data;
+
+    if (filters.date === "scheduled") {
+      items = items.filter((item) => {
+        const schedule = parseOrderSchedule(item);
+        return schedule.isScheduled;
+      });
+    }
+
+    return items.map((item) => ({
+      id: `#${item.order_number}`,
+      ...item,
+    }));
+  }, [data?.data, filters.date]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -74,27 +93,28 @@ const Page = () => {
     return <div className="p-4 text-center">Loading orders...</div>;
   }
 
-
-
   return (
     <>
       <h3 className="text-xl font-semibold mb-4">Order Management</h3>
       <AdvancedTable
         columns={columns}
-        data={data?.data.map((item) => ({ id: `#${item.order_number}`, ...item })) || []}
+        data={tableData}
         filterConfig={[
           {
-            label: "Date",
+            label: "Schedule / Date",
             column: "date",
             type: "badge",
             options: [
               { label: "Today", value: "today" },
+              { label: "Scheduled", value: "scheduled" },
               { label: "All time", value: "all time" },
             ],
           },
         ]}
         filters={filters}
-        onFiltersChange={(newFilters) => setFilters(newFilters as Record<string, any>)}
+        onFiltersChange={(newFilters) =>
+          setFilters(newFilters as Record<string, any>)
+        }
         addButton={{
           text: "Add New Order",
           onClick: () =>

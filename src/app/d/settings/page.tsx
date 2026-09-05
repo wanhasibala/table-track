@@ -9,9 +9,15 @@ import {
   Save, 
   Navigation,
   Globe,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Upload,
+  X,
+  Check,
+  QrCode,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFileUpload } from "@/hooks/use-file-upload";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<"profile" | "payments">("profile");
@@ -34,6 +40,73 @@ export default function SettingsPage() {
   const [paymentInstructions, setPaymentInstructions] = useState("");
 
   const [detectingGps, setDetectingGps] = useState(false);
+  const [uploadingQris, setUploadingQris] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const { uploadFile } = useFileUpload();
+
+  const handleQrisUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file (PNG, JPG, WEBP).");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file size exceeds 5MB limit.");
+      return;
+    }
+
+    setUploadingQris(true);
+    const toastId = toast.loading("Uploading QRIS image to storage...");
+    try {
+      const url = await uploadFile(file, {
+        bucket: "assets",
+        folder: "qris",
+      });
+      setQrisImageUrl(url);
+      toast.success("QRIS image uploaded successfully!", { id: toastId });
+    } catch (err: any) {
+      console.error("QRIS upload error:", err);
+      toast.error(err.message || "Failed to upload QRIS image. Ensure storage bucket exists.", { id: toastId });
+    } finally {
+      setUploadingQris(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Logo file size exceeds 5MB limit.");
+      return;
+    }
+
+    setUploadingLogo(true);
+    const toastId = toast.loading("Uploading business logo...");
+    try {
+      const url = await uploadFile(file, {
+        bucket: "assets",
+        folder: "logos",
+      });
+      setLogoUrl(url);
+      toast.success("Logo uploaded successfully!", { id: toastId });
+    } catch (err: any) {
+      console.error("Logo upload error:", err);
+      toast.error(err.message || "Failed to upload logo.", { id: toastId });
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = "";
+    }
+  };
 
   useEffect(() => {
     const fetchTenantData = async () => {
@@ -236,17 +309,80 @@ export default function SettingsPage() {
             </div>
 
             {/* Logo Image */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                <ImageIcon className="h-3.5 w-3.5" /> Logo Image URL
-              </label>
-              <input
-                type="url"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="e.g. https://yourhost.com/logo.png"
-                className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-              />
+            <div className="space-y-2 p-3.5 bg-muted/20 border border-border/40 rounded-lg">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <ImageIcon className="h-3.5 w-3.5 text-orange-500" /> Store Logo
+                </label>
+                {logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setLogoUrl("")}
+                    className="text-[11px] font-semibold text-destructive hover:underline flex items-center gap-1"
+                  >
+                    <X className="h-3 w-3" /> Remove
+                  </button>
+                )}
+              </div>
+
+              {logoUrl ? (
+                <div className="flex items-center gap-4 bg-card p-3 rounded-lg border border-border/60">
+                  <div className="w-16 h-16 rounded-xl border border-border/80 bg-background overflow-hidden shrink-0 flex items-center justify-center shadow-xs">
+                    <img
+                      src={logoUrl}
+                      alt="Store Logo"
+                      className="w-full h-full object-contain p-1"
+                    />
+                  </div>
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <input
+                      type="url"
+                      value={logoUrl}
+                      onChange={(e) => setLogoUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background text-muted-foreground font-mono truncate"
+                    />
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground cursor-pointer transition-colors">
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>{uploadingLogo ? "Uploading..." : "Replace Logo"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleLogoUpload}
+                        disabled={uploadingLogo}
+                      />
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <label
+                  className={cn(
+                    "flex flex-col items-center justify-center p-4 border-2 border-dashed border-border/80 hover:border-orange-500/50 rounded-xl bg-card hover:bg-muted/10 cursor-pointer transition-all text-center",
+                    uploadingLogo && "opacity-50 pointer-events-none"
+                  )}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                    disabled={uploadingLogo}
+                  />
+                  {uploadingLogo ? (
+                    <div className="flex items-center gap-2 py-2">
+                      <Loader2 className="h-4 w-4 text-orange-500 animate-spin" />
+                      <span className="text-xs font-semibold text-foreground">Uploading Logo...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 py-1 text-muted-foreground">
+                      <Upload className="h-4 w-4 text-orange-500" />
+                      <span className="text-xs font-semibold text-foreground">Click to upload store logo</span>
+                      <span className="text-[10px] text-muted-foreground">(PNG, JPG, WEBP)</span>
+                    </div>
+                  )}
+                </label>
+              )}
             </div>
 
             {/* Store Address */}
@@ -358,19 +494,100 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* QRIS URL / Payload */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                <Globe className="h-3.5 w-3.5" /> QRIS Code Image URL
-              </label>
-              <input
-                type="url"
-                value={qrisImageUrl}
-                onChange={(e) => setQrisImageUrl(e.target.value)}
-                placeholder="e.g. https://yourhost.com/qris.jpg"
-                className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-              />
-              <p className="text-[10px] text-muted-foreground">Upload your QRIS static code image and paste the URL here to display it to customers on checkout.</p>
+            {/* QRIS Code Image Upload */}
+            <div className="space-y-2 p-3.5 bg-muted/20 border border-border/40 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <QrCode className="h-4 w-4 text-orange-500" /> QRIS Code Image
+                  </label>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Upload your static QRIS image to display it to customers on checkout.
+                  </p>
+                </div>
+                {qrisImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setQrisImageUrl("")}
+                    className="text-[11px] font-semibold text-destructive hover:underline flex items-center gap-1"
+                  >
+                    <X className="h-3 w-3" /> Remove
+                  </button>
+                )}
+              </div>
+
+              {qrisImageUrl ? (
+                <div className="flex flex-col sm:flex-row gap-4 items-start bg-card p-3.5 rounded-xl border border-border/60">
+                  <div className="relative w-32 h-32 rounded-xl border border-border/80 bg-background overflow-hidden shrink-0 flex items-center justify-center shadow-xs">
+                    <img
+                      src={qrisImageUrl}
+                      alt="QRIS Preview"
+                      className="w-full h-full object-contain p-1.5"
+                    />
+                  </div>
+                  <div className="space-y-2.5 flex-1 min-w-0 w-full">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+                      <Check className="h-4 w-4" />
+                      <span>QRIS Code Active</span>
+                    </div>
+                    <input
+                      type="url"
+                      value={qrisImageUrl}
+                      onChange={(e) => setQrisImageUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background text-muted-foreground font-mono truncate"
+                    />
+                    <div>
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground cursor-pointer transition-colors">
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>{uploadingQris ? "Uploading..." : "Replace QRIS Image"}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleQrisUpload}
+                          disabled={uploadingQris}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <label
+                  className={cn(
+                    "flex flex-col items-center justify-center p-6 border-2 border-dashed border-border/80 hover:border-orange-500/50 rounded-xl bg-card hover:bg-muted/10 cursor-pointer transition-all text-center",
+                    uploadingQris && "opacity-50 pointer-events-none"
+                  )}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleQrisUpload}
+                    disabled={uploadingQris}
+                  />
+                  {uploadingQris ? (
+                    <div className="flex flex-col items-center gap-2 py-2">
+                      <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
+                      <span className="text-xs font-semibold text-foreground">
+                        Uploading QRIS Image to Storage...
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1.5 py-2">
+                      <div className="w-10 h-10 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center mb-1">
+                        <Upload className="h-5 w-5" />
+                      </div>
+                      <span className="text-xs font-bold text-foreground">
+                        Click to upload QRIS image
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">
+                        PNG, JPG, or WEBP up to 5MB
+                      </span>
+                    </div>
+                  )}
+                </label>
+              )}
             </div>
 
             {/* Payment Instructions */}

@@ -30,6 +30,7 @@ export interface Order {
   delivery_longitude: number | null;
   created_at: string;
   order_number: number; // Auto-incrementing order number
+  scheduled_for?: string | null; // Scheduled date/time for future orders
   
   // Relations / Joined data
   items?: OrderItem[];

@@ -8,8 +8,16 @@ import {
   LogOut,
   LucideIcon,
   SquareActivity,
+  Pizza,
+  ShoppingCart,
+  Wallet,
+  Utensils,
+  Table,
+  Book,
+  Settings,
   User,
   Users,
+  Receipt,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLogoutMutation } from "@/store/services/authApi";
@@ -34,7 +42,7 @@ import { useGetResourceByIdQuery } from "@/store/services/flexible-querry";
 interface MenuItem {
   label: string;
   url: string;
-  icon?: LucideIcon | string;
+  icon?: LucideIcon;
   permissions?: string[];
   child?: MenuItem[];
   grandChild?: MenuItem[];
@@ -50,35 +58,26 @@ const DEFAULT_MENU: MenuItem[] = [
     url: "/d/dashboard",
     icon: SquareActivity,
   },
-  { label: "Overview", url: "/d/overview" },
-  { label: "Category", url: "/d/category" },
-  { label: "Menu Management", url: "/d/menu-management" },
-  { label: "Order Management", url: "/d/order-management" },
-  { label: "Money Management", url: "/d/money-management" },
-  { label: "Table Management", url: "/d/table-management" },
-  { label: "Billing & Plans", url: "/d/billing" },
-  { label: "Reports", url: "/d/reports" },
-  { label: "Settings", url: "/d/settings" },
-];
-
-const SUPER_ADMIN_MENU: MenuItem[] = [
-  { label: "dashboard", url: "/d/dashboard", icon: SquareActivity },
-  { label: "menu", url: "/d/master_user/menu", icon: LayoutGrid },
-  { label: "client", url: "/d/master_user/client", icon: Building },
-  { label: "role", url: "/d/master_user/role", icon: Users },
-  { label: "users", url: "/d/master_user/users", icon: User },
-  { label: "reset_password", url: "/d/master_user/reset-password", icon: User },
+  { label: "Category", url: "/d/category", icon: Utensils },
+  { label: "Menu Management", url: "/d/menu-management", icon: Pizza },
+  { label: "Order Management", url: "/d/order-management", icon: ShoppingCart },
+  { label: "Money Management", url: "/d/money-management", icon: Wallet },
+  { label: "Table Management", url: "/d/table-management", icon: Table },
+  { label: "Billing & Plans", url: "/d/billing", icon: Receipt },
+  { label: "Reports", url: "/d/reports", icon: Book },
+  { label: "Settings", url: "/d/settings", icon: Settings },
 ];
 
 export function useSidebarItems(): MenuItem[] {
   // Get active tenant details
-  const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+  const userStr =
+    typeof window !== "undefined" ? localStorage.getItem("user") : null;
   const user = userStr ? JSON.parse(userStr) : null;
   const tenantId = user?.tenant_id;
 
   const { data: tenantData } = useGetResourceByIdQuery(
     { resource: "tenant", id: tenantId! },
-    { skip: !tenantId }
+    { skip: !tenantId },
   );
 
   const tenant = tenantData?.data;
@@ -94,7 +93,7 @@ export function useSidebarItems(): MenuItem[] {
         label: "Billing & Plans",
         url: "/d/billing",
         icon: SquareActivity, // Reusing icon for the single item
-      }
+      },
     ];
   }, [subscriptionTier]);
 
@@ -218,19 +217,12 @@ function SidebarTreeItem({
     }
   }, [pathname, hasChildren, item.child]);
 
-  // const renderIcon = () => {
-  //   if (!item.icon) return null;
+  const renderIcon = () => {
+    if (!item.icon) return null;
 
-  //   if (typeof item.icon === "string") {
-  //     const IconComponent = icons[item.icon];
-  //     if (IconComponent) {
-  //       return <IconComponent className="size-5" />;
-  //     }
-  //   } else {
-  //     const IconComponent = item.icon;
-  //     return <IconComponent className="size-5" />;
-  //   }
-  // };
+    const IconComponent = item.icon;
+    return <IconComponent className="size-5" />;
+  };
 
   const handleItemClick = (e: React.MouseEvent) => {
     if (hasChildren) {
@@ -269,17 +261,8 @@ function SidebarTreeItem({
     );
   })();
 
-  const parentGroup = [
-    "asset_operation",
-    "maintenance_operation",
-    "reports_operation",
-  ].includes(item.label);
-
   return (
-    <SidebarMenuItem
-      key={item.url}
-      className={cn(parentGroup && "mt-4 border-b")}
-    >
+    <SidebarMenuItem key={item.url}>
       <div className="flex flex-col">
         <div className="flex items-center">
           <SidebarMenuButton
@@ -317,7 +300,7 @@ function SidebarTreeItem({
                 className="relative flex flex-1 items-center gap-3"
                 onClick={onClick}
               >
-                {/* {renderIcon()} */}
+                {renderIcon()}
                 {!isSidebarCollapsed && (
                   <>
                     <span className="text-large flex-1">{item.label}</span>
