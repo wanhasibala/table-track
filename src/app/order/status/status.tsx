@@ -107,7 +107,7 @@ export default function OrderStatusPage() {
     const shareUrl = typeof window !== "undefined" ? window.location.href : "";
     const shareData = {
       title: `${order?.tenant?.name || "Order"} Tracking - #${order?.id?.slice(0, 8).toUpperCase()}`,
-      text: `Track your order from ${order?.tenant?.name || "TableTrack"}:`,
+      text: `Track your order from ${order?.tenant?.name || "Nata"}:`,
       url: shareUrl,
     };
 

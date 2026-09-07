@@ -40,7 +40,7 @@ export default function TableManagementPage() {
     const host = window.location.host; // e.g. "misenary.localhost:3000" or "localhost:3000"
     const parts = host.split(".");
     
-    // Check if we are on a subdomain (e.g. dashboard.tabletrack.com or misenary.localhost:3000)
+    // Check if we are on a subdomain (e.g. dashboard.nata.app or misenary.localhost:3000)
     if (parts.length > 2) {
       return parts.slice(1).join(".");
     }

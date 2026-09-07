@@ -90,7 +90,7 @@ export default function BillingPage() {
     <div className="space-y-6 max-w-4xl mx-auto pb-10">
       <div>
         <h3 className="text-2xl font-bold tracking-tight">Billing & Subscription</h3>
-        <p className="text-sm text-muted-foreground">Manage your TableTrack subscription to unlock restaurant ordering features.</p>
+        <p className="text-sm text-muted-foreground">Manage your Nata subscription to unlock restaurant ordering features.</p>
       </div>
 
       {/* Subscription Status Warning Alert */}
@@ -145,7 +145,7 @@ export default function BillingPage() {
             </div>
             <div className="flex items-start gap-2.5 text-sm">
               <Check className="size-4 text-orange-500 shrink-0 mt-0.5" />
-              <span><strong>Custom Subdomains</strong> mapping (e.g. <code className="text-xs">yourbrand.tabletrack.com</code>)</span>
+              <span><strong>Custom Subdomains</strong> mapping (e.g. <code className="text-xs">yourbrand.nata.app</code>)</span>
             </div>
             <div className="flex items-start gap-2.5 text-sm">
               <Check className="size-4 text-orange-500 shrink-0 mt-0.5" />

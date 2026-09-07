@@ -8,7 +8,7 @@ export default function OfflinePage() {
           </p>
           <h1 className="text-4xl font-bold tracking-tight">You are offline</h1>
           <p className="text-base text-muted-foreground">
-            Table Track can still open pages you have already visited. Once your
+            Nata can still open pages you have already visited. Once your
             connection is back, refresh to sync with the server again.
           </p>
         </div>

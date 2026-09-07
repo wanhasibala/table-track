@@ -236,7 +236,7 @@ export default function OnboardingPage() {
       <div className="w-full max-w-lg z-10">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-orange-400 via-orange-500 to-amber-500 bg-clip-text text-transparent">
-            TableTrack
+            Nata
           </h1>
           <p className="text-slate-400 mt-2">Set up your digital restaurant workspace in seconds</p>
         </div>

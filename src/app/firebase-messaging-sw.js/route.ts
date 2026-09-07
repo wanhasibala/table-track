@@ -28,7 +28,7 @@ export async function GET() {
 
       messaging.onBackgroundMessage((payload) => {
         console.log('[firebase-messaging-sw.js] Received background message ', payload);
-        const notificationTitle = payload.notification?.title || 'TableTrack Update';
+        const notificationTitle = payload.notification?.title || 'Nata Update';
         const notificationOptions = {
           body: payload.notification?.body || 'Your order status has changed.',
           icon: '/icon.svg',

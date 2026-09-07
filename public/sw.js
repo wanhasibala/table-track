@@ -1,5 +1,15 @@
-const CACHE_NAME = "table-track-pwa-v1";
-const PRECACHE_URLS = ["/", "/offline", "/manifest.webmanifest", "/icon.svg", "/favicon.ico"];
+const CACHE_NAME = "nata-pwa-v1";
+const PRECACHE_URLS = [
+  "/",
+  "/offline",
+  "/manifest.webmanifest",
+  "/favicon.ico",
+  "/apple-touch-icon.png",
+  "/favicon-32x32.png",
+  "/favicon-16x16.png",
+  "/android-chrome-192x192.png",
+  "/android-chrome-512x512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

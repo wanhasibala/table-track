@@ -575,7 +575,7 @@ export const OrderForm = ({
       </head>
       <body>
         <div class="header text-center">
-          <h2>TableTrack</h2>
+          <h2>Nata</h2>
           <div class="subtitle">Fresh Fruits & Digital Ordering</div>
           <div class="subtitle">Tel: ${customerPhone || "N/A"}</div>
         </div>
@@ -648,8 +648,8 @@ export const OrderForm = ({
         ` : ""}
         
         <div class="footer text-center">
-          <p>Thank you for ordering with TableTrack!</p>
-          <p>Powered by TableTrack digital system</p>
+          <p>Thank you for ordering with Nata!</p>
+          <p>Powered by Nata digital system</p>
         </div>
         
         <script>

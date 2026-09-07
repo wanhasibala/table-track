@@ -1,6 +1,6 @@
 # Dynamic Subdomain Routing Guide (Next.js + Vercel)
 
-This guide shows you how to automate dynamic tenant subdomains (e.g., mapping `misenary.tabletrack.com/table-1` internally to `/order/misenary/table-1` so the address bar displays `misenary.tabletrack.com/table-1`).
+This guide shows you how to automate dynamic tenant subdomains (e.g., mapping `misenary.nata.app/table-1` internally to `/order/misenary/table-1` so the address bar displays `misenary.nata.app/table-1`).
 
 ---
 
@@ -9,13 +9,13 @@ Vercel supports wildcards out-of-the-box. Instead of adding every client's subdo
 
 1. Go to your project on the **Vercel Dashboard**.
 2. Go to **Settings > Domains**.
-3. Add `*.tabletrack.com` (or `*.tabletrack.vercel.app` if you are using the Vercel default domain).
+3. Add `*.nata.app` (or `*.nata.vercel.app` if you are using the Vercel default domain).
 4. **DNS Setup**: Go to your DNS provider (e.g., Cloudflare, GoDaddy, Namecheap) and add a **CNAME** record:
    - **Name**: `*`
    - **Target**: `cname.vercel-dns.com`
    - **TTL**: Auto / 3600
 
-Now, any subdomain mapped to your domain (e.g. `clientA.tabletrack.com`) will automatically resolve to your Vercel deployment.
+Now, any subdomain mapped to your domain (e.g. `clientA.nata.app`) will automatically resolve to your Vercel deployment.
 
 ---
 
@@ -33,7 +33,7 @@ export function middleware(request: NextRequest) {
   const hostname = request.headers.get("host") || "";
 
   // 1. Define your main domains and development hosts
-  const mainDomains = ["tabletrack.vercel.app", "tabletrack.com", "localhost:3000"];
+  const mainDomains = ["nata.vercel.app", "nata.app", "localhost:3000"];
 
   let currentHost = hostname;
   // Remove port for local development environments
@@ -51,7 +51,7 @@ export function middleware(request: NextRequest) {
     const parts = currentHost.split(".");
     let subdomain = "";
     
-    // E.g. misenary.tabletrack.com -> parts = ["misenary", "tabletrack", "com"]
+    // E.g. misenary.nata.app -> parts = ["misenary", "nata", "app"]
     if (parts.length > 2) {
       subdomain = parts[0];
     }
@@ -68,7 +68,7 @@ export function middleware(request: NextRequest) {
         const tableId = pathname.replace(/^\//, "");
         
         // Rewrite internally:
-        // - From: misenary.tabletrack.com/table-1
+        // - From: misenary.nata.app/table-1
         // - To: /order/misenary/table-1
         if (tableId) {
           url.pathname = `/order/${subdomain}/${tableId}`;
