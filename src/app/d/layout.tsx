@@ -42,7 +42,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   if (!isMounted || (tenantLoading && pathname !== "/d/billing")) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-2 bg-slate-950 text-white">
-        <Loader2 className="size-8 text-orange-500 animate-spin" />
+        <Loader2 className="size-8 text-primary animate-spin" />
         <span className="text-muted-foreground">Checking subscription status...</span>
       </div>
     );
@@ -52,7 +52,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   if (subscriptionTier !== "pro" && pathname !== "/d/billing") {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-2 bg-slate-950 text-white">
-        <Loader2 className="size-8 text-orange-500 animate-spin" />
+        <Loader2 className="size-8 text-primary-foreground animate-spin" />
         <span className="text-muted-foreground">Redirecting to billing...</span>
       </div>
     );
