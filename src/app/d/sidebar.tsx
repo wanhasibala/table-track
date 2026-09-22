@@ -18,6 +18,7 @@ import {
   User,
   Users,
   Receipt,
+  Store,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLogoutMutation } from "@/store/services/authApi";
@@ -57,6 +58,11 @@ const DEFAULT_MENU: MenuItem[] = [
     label: "Dashboard",
     url: "/d/dashboard",
     icon: SquareActivity,
+  },
+  {
+    label: "POS Kasir",
+    url: "/d/pos",
+    icon: Store,
   },
   { label: "Category", url: "/d/category", icon: Utensils },
   { label: "Menu Management", url: "/d/menu-management", icon: Pizza },

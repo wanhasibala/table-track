@@ -107,7 +107,17 @@ export async function middleware(request: NextRequest) {
       }
 
       // Pro tier subdomain:
-      // If the pathname already starts with /order, bypass the rewrite logic and let Next.js handle it
+      // Direct rewrite for POS Kasir under subdomain: e.g. misenary.nata.app/pos -> /pos/misenary
+      if (pathname === "/pos" || pathname === "/pos/") {
+        url.pathname = `/pos/${subdomain}`;
+        return NextResponse.rewrite(url);
+      }
+
+      // If the pathname already starts with /pos or /order, let Next.js handle it
+      if (pathname.startsWith("/pos/")) {
+        return NextResponse.next();
+      }
+
       if (pathname === "/order" || pathname.startsWith("/order/")) {
         return NextResponse.next();
       }
