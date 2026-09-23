@@ -119,6 +119,36 @@ export default function PosSlugPage() {
   const tenant = tenantResult?.data?.[0];
   const tenantId = tenant?.id;
 
+  // Read configured PIN and PIN requirement from tenant / local storage fallback
+  const configuredPin = useMemo(() => {
+    if (tenant?.pos_pin) return String(tenant.pos_pin);
+    if (typeof window !== "undefined" && slug) {
+      const local = localStorage.getItem(`pos_pin_${slug}`);
+      if (local) return local;
+    }
+    return "1234";
+  }, [tenant?.pos_pin, slug]);
+
+  const isPinRequired = useMemo(() => {
+    if (tenant?.pos_pin_enabled !== undefined && tenant?.pos_pin_enabled !== null) {
+      return Boolean(tenant.pos_pin_enabled);
+    }
+    if (typeof window !== "undefined" && slug) {
+      const local = localStorage.getItem(`pos_pin_enabled_${slug}`);
+      if (local !== null) return local === "true";
+    }
+    return true;
+  }, [tenant?.pos_pin_enabled, slug]);
+
+  // If owner disabled PIN requirement, auto unlock POS
+  useEffect(() => {
+    if (!isPinRequired && tenant) {
+      setIsUnlocked(true);
+    }
+  }, [isPinRequired, tenant]);
+
+  const targetPinLength = configuredPin.length || 4;
+
   // 3. POS Navigation Tab: 'order' | 'queue' | 'payment'
   const [activeTab, setActiveTab] = useState<"order" | "queue" | "payment">(
     "order",
@@ -241,35 +271,33 @@ export default function PosSlugPage() {
       setPinInput("");
     } else if (val === "DEL") {
       setPinInput((prev) => prev.slice(0, -1));
-    } else if (pinInput.length < 6) {
+    } else if (pinInput.length < targetPinLength) {
       const nextPin = pinInput + val;
       setPinInput(nextPin);
 
-      // Auto check when 4 digits reached
-      if (nextPin.length === 4) {
+      // Auto check when target PIN length reached
+      if (nextPin.length === targetPinLength) {
         verifyPin(nextPin);
       }
     }
   };
 
   const verifyPin = (pinToTest: string) => {
-    // Standard PINs: 1234, 0000, 8888 or custom 4-6 digits
-    // By default accept '1234' or any valid 4-digit PIN for demo/kiosk
-    if (
-      pinToTest === "1234" ||
-      pinToTest === "0000" ||
-      pinToTest === "8888" ||
-      pinToTest.length >= 4
-    ) {
+    // Check against configured PIN (or fallback default 1234)
+    if (pinToTest === configuredPin) {
       setIsUnlocked(true);
+      setPinError(false);
       if (typeof window !== "undefined") {
         sessionStorage.setItem(`pos_unlocked_${slug}`, "true");
       }
       toast.success(`Terminal Terbuka! Selamat bekerja, ${staffName}`);
     } else {
       setPinError(true);
-      toast.error("PIN Kasir salah! Silakan coba lagi (Default: 1234)");
-      setPinInput("");
+      toast.error("PIN Kasir salah! Silakan periksa kembali.");
+      setTimeout(() => {
+        setPinInput("");
+        setPinError(false);
+      }, 600);
     }
   };
 
@@ -627,7 +655,7 @@ export default function PosSlugPage() {
           {/* PIN Display Indicators */}
           <div className="flex flex-col items-center gap-2">
             <span className="text-xs font-mono text-muted-foreground">
-              Masukkan 4-Digit PIN Kasir
+              Masukkan {targetPinLength}-Digit PIN Kasir
             </span>
             <div
               className={cn(
@@ -635,7 +663,7 @@ export default function PosSlugPage() {
                 pinError && "animate-shake bg-destructive/10",
               )}
             >
-              {[0, 1, 2, 3].map((idx) => (
+              {Array.from({ length: targetPinLength }).map((_, idx) => (
                 <div
                   key={idx}
                   className={cn(
@@ -658,7 +686,7 @@ export default function PosSlugPage() {
                   type="button"
                   onClick={() => handlePinKey(btn)}
                   className={cn(
-                    "h-14 rounded-2xl text-lg font-bold font-mono transition-all flex items-center justify-center active:scale-90 shadow-sm border",
+                    "h-14 rounded-2xl text-lg font-bold font-mono transition-all flex items-center justify-center active:scale-90 shadow-sm border cursor-pointer",
                     btn === "C"
                       ? "bg-destructive/10 text-destructive border-destructive/20 text-sm"
                       : btn === "DEL"
@@ -673,7 +701,7 @@ export default function PosSlugPage() {
           </div>
 
           <p className="text-[11px] font-mono text-muted-foreground/60 text-center">
-            *PIN Demo Default: <strong>1234</strong>
+            *PIN Kasir dapat diatur oleh Owner melalui menu Pengaturan
           </p>
         </Card>
       </div>

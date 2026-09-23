@@ -560,6 +560,8 @@ export type Database = {
           payment_customer_id: string | null
           payment_instructions: string | null
           payment_subscription_id: string | null
+          pos_pin: string | null
+          pos_pin_enabled: boolean | null
           qris_image_url: string | null
           slug: string
           subscription_status: string | null
@@ -580,6 +582,8 @@ export type Database = {
           payment_customer_id?: string | null
           payment_instructions?: string | null
           payment_subscription_id?: string | null
+          pos_pin?: string | null
+          pos_pin_enabled?: boolean | null
           qris_image_url?: string | null
           slug: string
           subscription_status?: string | null
@@ -600,6 +604,8 @@ export type Database = {
           payment_customer_id?: string | null
           payment_instructions?: string | null
           payment_subscription_id?: string | null
+          pos_pin?: string | null
+          pos_pin_enabled?: boolean | null
           qris_image_url?: string | null
           slug?: string
           subscription_status?: string | null

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import {
   useGetResourceQuery,
   useGetResourceByIdQuery,
@@ -37,6 +38,7 @@ import {
   X,
   Store,
   ChevronDown,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -569,6 +571,15 @@ export default function PosPage() {
 
         {/* Right Status Badges */}
         <div className="flex items-center gap-2.5">
+          <Link
+            href="/d/settings?tab=security"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/10 hover:bg-orange-500/15 border border-orange-500/20 text-orange-600 dark:text-orange-400 text-xs font-semibold transition-colors"
+            title="Kelola PIN Kasir"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Pengaturan PIN</span>
+          </Link>
+
           <div className="hidden md:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[11px] font-mono font-medium">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>Online • Sync</span>
