@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useGetResourceQuery } from "@/store/services/flexible-querry";
 import { AdvancedTable } from "@/components/ui/data-table/advanced-table";
-import { expenseColumns, summaryColumns } from "./money";
+import { expenseColumns, summaryColumns, salesColumns } from "./money";
 import { MoneyForm } from "./money-form";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,13 +28,20 @@ import {
   Calendar,
   Layers,
   FileText,
-  ArrowRight
+  ArrowRight,
+  ShoppingBag
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  parseOrderSchedule,
+  getOrderEffectiveDate,
+  isOrderInDateRange,
+} from "@/utils/order-schedule";
 
 export default function MoneyManagementPage() {
   const expCols = expenseColumns();
   const sumCols = summaryColumns();
+  const salesCols = salesColumns();
 
   const [dialog, setDialog] = useState({
     open: false,
@@ -54,8 +61,8 @@ export default function MoneyManagementPage() {
     return new Date().toISOString().split("T")[0]; // today
   });
 
-  // Toggle between "summary" (grouped view) and "expenses" (raw ledger view)
-  const [viewMode, setViewMode] = useState<"summary" | "expenses">("summary");
+  // Toggle between "summary" (grouped view), "expenses" (raw ledger view), and "sales" (orders ledger view)
+  const [viewMode, setViewMode] = useState<"summary" | "expenses" | "sales">("summary");
 
   // Compute date boundary parameters for query filtering
   const filterDateBoundaries = useMemo(() => {
@@ -113,26 +120,19 @@ export default function MoneyManagementPage() {
     };
   }, [filterDateBoundaries]);
 
-  // Query parameters for orders
-  const queryParamsOrders = useMemo(() => {
-    return {
-      order: "desc" as const,
-      sort: "created_at" as const,
-      ...(filterDateBoundaries?.gte ? { created_at_gte: filterDateBoundaries.gte } : {}),
-      ...(filterDateBoundaries?.lte ? { created_at_lte: filterDateBoundaries.lte } : {}),
-    };
-  }, [filterDateBoundaries]);
-
   // 1. Fetch live operational expenses with DB-side filtering
   const { data: expenseData, isLoading: expensesLoading, refetch: refetchExpenses } = useGetResourceQuery({
     resource: "expense",
     params: queryParamsExpenses,
   });
 
-  // 2. Fetch live sales from order_table with DB-side filtering
+  // 2. Fetch live sales from order_table (without DB-side created_at restriction so scheduled orders with future/past creation date are captured)
   const { data: orderData, isLoading: ordersLoading, refetch: refetchOrders } = useGetResourceQuery({
     resource: "order_table",
-    params: queryParamsOrders,
+    params: {
+      order: "desc" as const,
+      sort: "created_at" as const,
+    },
   });
 
   // Setup Supabase Real-Time listener
@@ -164,13 +164,27 @@ export default function MoneyManagementPage() {
   }, [refetchExpenses, refetchOrders]);
 
   const expenses = expenseData?.data || [];
-  const orders = orderData?.data || [];
+  const rawOrders = orderData?.data || [];
 
-  // Compute metrics from DB-filtered values
+  // Filter orders by their effective operational/accounting date:
+  // If the order is scheduled, its schedule date is used rather than created_at.
+  const orders = useMemo(() => {
+    return rawOrders.filter((order: any) => {
+      if (dateFilter === "all" || !filterDateBoundaries) return true;
+      return isOrderInDateRange(order, filterDateBoundaries.gte, filterDateBoundaries.lte);
+    });
+  }, [rawOrders, dateFilter, filterDateBoundaries]);
+
+  // Compute metrics from orders in this timeframe using effective date
   const metrics = useMemo(() => {
     const salesIncome = orders.reduce((sum: number, order: any) => {
-      const isCompleted = order.status === "completed" || order.status === "served";
-      return isCompleted ? sum + Number(order.total_amount || 0) : sum;
+      const isValidSale =
+        (order.payment_status === "paid" ||
+          order.payment_status === "settlement" ||
+          order.status === "completed" ||
+          order.status === "served") &&
+        order.status !== "cancelled";
+      return isValidSale ? sum + Number(order.total_amount || 0) : sum;
     }, 0);
 
     const totalExpenses = expenses.reduce((sum: number, exp: any) => {
@@ -184,7 +198,7 @@ export default function MoneyManagementPage() {
     };
   }, [orders, expenses]);
 
-  // Grouped transaction data by timeframe period
+  // Grouped transaction data by timeframe period using effective date
   const groupedSummaryData = useMemo(() => {
     const groups: Record<string, { label: string; income: number; expenses: number }> = {};
 
@@ -213,12 +227,17 @@ export default function MoneyManagementPage() {
       return { key: yearStr, label: yearStr };
     };
 
-    // 1. Process sales income
+    // 1. Process sales income using effective date (scheduled date if scheduled, else created_at)
     orders.forEach((order: any) => {
-      const isCompleted = order.status === "completed" || order.status === "served";
-      if (!isCompleted) return;
+      const isValidSale =
+        (order.payment_status === "paid" ||
+          order.payment_status === "settlement" ||
+          order.status === "completed" ||
+          order.status === "served") &&
+        order.status !== "cancelled";
+      if (!isValidSale) return;
 
-      const orderDate = new Date(order.created_at);
+      const orderDate = getOrderEffectiveDate(order);
       const { key, label } = getGroupKeyAndLabel(orderDate);
 
       if (!groups[key]) {
@@ -260,16 +279,27 @@ export default function MoneyManagementPage() {
     const csvRows = [];
     csvRows.push(["Date", "Type", "Category", "Description", "Amount (IDR)"].join(","));
 
-    // 1. Add Sales Income rows
+    // 1. Add Sales Income rows using effective date
     orders.forEach((order: any) => {
-      const isCompleted = order.status === "completed" || order.status === "served";
-      if (!isCompleted) return;
+      const isValidSale =
+        (order.payment_status === "paid" ||
+          order.payment_status === "settlement" ||
+          order.status === "completed" ||
+          order.status === "served") &&
+        order.status !== "cancelled";
+      if (!isValidSale) return;
       
+      const schedule = parseOrderSchedule(order);
+      const orderDate = getOrderEffectiveDate(order);
+      const scheduleNote = schedule.isScheduled
+        ? ` [Scheduled: ${schedule.formattedSchedule}]`
+        : "";
+
       const row = [
-        new Date(order.created_at).toLocaleDateString("id-ID"),
+        orderDate.toLocaleDateString("id-ID"),
         "Income (Sale)",
         "Order Sale",
-        `Order ID: #${order.id.slice(0, 8)} (${order.customer_name || "Guest"}) - Status: ${order.status}`,
+        `Order ID: #${order.order_number || order.id.slice(0, 8)} (${order.customer_name || "Guest"}) - Status: ${order.status}${scheduleNote}`,
         order.total_amount
       ];
       csvRows.push(row.map(val => `"${val}"`).join(","));
@@ -457,6 +487,14 @@ export default function MoneyManagementPage() {
             >
               <FileText className="size-3.5" /> Expenses Ledger
             </Button>
+            <Button
+              variant={viewMode === "sales" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("sales")}
+              className="text-xs font-semibold flex items-center gap-1.5 h-8.5"
+            >
+              <ShoppingBag className="size-3.5" /> Sales Ledger ({orders.length})
+            </Button>
           </div>
 
           <Button
@@ -476,13 +514,21 @@ export default function MoneyManagementPage() {
               data={groupedSummaryData}
             />
           </div>
-        ) : (
+        ) : viewMode === "expenses" ? (
           <div>
             <h4 className="text-sm font-bold mb-3 text-muted-foreground">Expenses Ledger ({expenses.length})</h4>
             <AdvancedTable
               columns={expCols}
               data={expenses}
               row_click={(id) => setDialog({ open: true, id: id || "" })}
+            />
+          </div>
+        ) : (
+          <div>
+            <h4 className="text-sm font-bold mb-3 text-muted-foreground">Sales & Orders Ledger ({orders.length})</h4>
+            <AdvancedTable
+              columns={salesCols}
+              data={orders}
             />
           </div>
         )}

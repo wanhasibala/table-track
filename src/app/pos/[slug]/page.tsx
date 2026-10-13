@@ -37,7 +37,9 @@ import {
   KeyRound,
   ShieldCheck,
   LogOut,
+  CalendarClock,
 } from "lucide-react";
+import { parseOrderSchedule } from "@/utils/order-schedule";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -227,7 +229,7 @@ export default function PosSlugPage() {
   const [autoReleaseTable, setAutoReleaseTable] = useState<boolean>(true);
   const [receiptModalOpen, setReceiptModalOpen] = useState<boolean>(false);
   const [selectedQueueFilter, setSelectedQueueFilter] = useState<
-    "all" | "cooking" | "ready" | "done"
+    "all" | "pending" | "confirmed" | "preparing" | "served" | "completed" | "cancelled"
   >("all");
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState<string>("");
@@ -560,34 +562,31 @@ export default function PosSlugPage() {
   // Update order status in queue
   const handleUpdateQueueStatus = async (
     orderId: string,
-    nextStatus: "preparing" | "served" | "completed",
+    nextStatus: string,
   ) => {
     try {
+      const updateBody: any = { status: nextStatus };
+      
+
       await updateOrder({
         resource: "order_table",
         id: orderId,
-        body: { status: nextStatus },
+        body: updateBody,
       });
-      toast.success(`Status tiket diupdate: ${nextStatus.toUpperCase()}`);
+      toast.success(`Status pesanan diubah ke: ${nextStatus.toUpperCase()}`);
       refetchOrders();
-    } catch (err) {
-      toast.error("Gagal mengupdate status tiket");
+    } catch (err: any) {
+      toast.error(err?.message || "Gagal mengupdate status pesanan");
     }
   };
 
   // Filtered queue orders
   const queueOrders = useMemo(() => {
     const allOrders = ordersData?.data || [];
-    if (selectedQueueFilter === "cooking") {
-      return allOrders.filter((o: any) => o.status === "preparing");
+    if (selectedQueueFilter === "all") {
+      return allOrders;
     }
-    if (selectedQueueFilter === "ready") {
-      return allOrders.filter((o: any) => o.status === "served");
-    }
-    if (selectedQueueFilter === "done") {
-      return allOrders.filter((o: any) => o.status === "completed");
-    }
-    return allOrders.filter((o: any) => o.status !== "cancelled");
+    return allOrders.filter((o: any) => o.status === selectedQueueFilter);
   }, [ordersData, selectedQueueFilter]);
 
   // Loading or Not Found State
@@ -1292,15 +1291,18 @@ export default function PosSlugPage() {
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             {[
               { id: "all", label: "Semua" },
-              { id: "cooking", label: "Sedang Dimasak" },
-              { id: "ready", label: "Siap Saji" },
-              { id: "done", label: "Selesai / Done" },
+              { id: "pending", label: "Pending" },
+              { id: "confirmed", label: "Confirmed" },
+              { id: "preparing", label: "Preparing" },
+              { id: "served", label: "Served" },
+              { id: "completed", label: "Completed" },
+              { id: "cancelled", label: "Cancelled" },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setSelectedQueueFilter(tab.id as any)}
                 className={cn(
-                  "min-h-[44px] px-5 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                  "min-h-[40px] px-4 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
                   selectedQueueFilter === tab.id
                     ? "bg-primary text-on-primary shadow-sm"
                     : "bg-card border text-muted-foreground hover:text-foreground",
@@ -1315,13 +1317,19 @@ export default function PosSlugPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {queueOrders.map((order: any) => {
               const statusBadge =
-                order.status === "preparing"
-                  ? { label: "SEDANG DIMASAK", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" }
-                  : order.status === "served"
-                    ? { label: "SIAP SAJI", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" }
-                    : order.status === "completed"
-                      ? { label: "SELESAI", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" }
-                      : { label: "MENUNGGU", color: "bg-muted text-muted-foreground" };
+                order.status === "pending"
+                  ? { label: "Pending", color: "bg-yellow-500/10 text-yellow-600 border-yellow-500/25" }
+                  : order.status === "confirmed"
+                    ? { label: "Confirmed", color: "bg-blue-500/10 text-blue-600 border-blue-500/25" }
+                    : order.status === "preparing"
+                      ? { label: "Preparing", color: "bg-purple-500/10 text-purple-600 border-purple-500/25" }
+                      : order.status === "served"
+                        ? { label: "Served", color: "bg-indigo-500/10 text-indigo-600 border-indigo-500/25" }
+                        : order.status === "completed"
+                          ? { label: "Completed", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/25" }
+                          : order.status === "cancelled"
+                            ? { label: "Cancelled", color: "bg-destructive/10 text-destructive border-destructive/25" }
+                            : { label: order.status || "Pending", color: "bg-muted text-muted-foreground" };
 
               return (
                 <Card
@@ -1354,18 +1362,31 @@ export default function PosSlugPage() {
                         >
                           {statusBadge.label}
                         </span>
-                        <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {new Date(order.created_at).toLocaleTimeString("id-ID", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
+                        {(() => {
+                          const schedule = parseOrderSchedule(order);
+                          if (schedule.isScheduled) {
+                            return (
+                              <span className="inline-flex items-center gap-1 font-bold text-[10px] bg-purple-500/15 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-md border border-purple-500/30 shadow-2xs">
+                                <CalendarClock className="w-3 h-3 shrink-0 text-purple-600 dark:text-purple-400" />
+                                <span>{schedule.formattedSchedule}</span>
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(order.created_at).toLocaleTimeString("id-ID", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
 
                     {/* Order Items Breakdown */}
-                    <div className="bg-muted/30 border rounded-xl p-3 space-y-2 max-h-48 overflow-y-auto">
+                    <div className="bg-muted/30 border rounded-xl p-3 space-y-2 max-h-44 overflow-y-auto">
                       {order.order_item?.map((oi: any) => (
                         <div
                           key={oi.id}
@@ -1395,47 +1416,76 @@ export default function PosSlugPage() {
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="pt-2 border-t">
-                    {order.status === "confirmed" && (
-                      <Button
-                        onClick={() =>
-                          handleUpdateQueueStatus(order.id, "preparing")
-                        }
-                        className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs"
-                      >
-                        <Flame className="w-4 h-4 mr-1.5" />
-                        Mulai Masak (Set to PREPARING)
-                      </Button>
-                    )}
-                    {order.status === "preparing" && (
-                      <Button
-                        onClick={() =>
-                          handleUpdateQueueStatus(order.id, "served")
-                        }
-                        className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"
-                      >
-                        <Utensils className="w-4 h-4 mr-1.5" />
-                        Tandai Siap Saji (Set to SERVED)
-                      </Button>
-                    )}
-                    {order.status === "served" && (
-                      <Button
-                        onClick={() =>
-                          handleUpdateQueueStatus(order.id, "completed")
-                        }
-                        className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                        Tandai Selesai (Set to DONE)
-                      </Button>
-                    )}
-                    {order.status === "completed" && (
-                      <div className="text-center py-2 text-xs font-mono text-emerald-600 font-semibold flex items-center justify-center gap-1.5">
-                        <Check className="w-4 h-4" />
-                        Pesanan Selesai & Ditutup
-                      </div>
-                    )}
+                  {/* Interactive Status Selection Buttons */}
+                  <div className="pt-3 border-t space-y-2">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                      Pilih Status Pesanan:
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        {
+                          status: "pending",
+                          label: "Pending",
+                          icon: Clock,
+                          activeClass: "bg-yellow-500 text-white border-yellow-600 shadow-xs",
+                          idleClass: "bg-muted/40 hover:bg-yellow-500/10 text-muted-foreground hover:text-yellow-600",
+                        },
+                        {
+                          status: "confirmed",
+                          label: "Confirmed",
+                          icon: CheckCircle2,
+                          activeClass: "bg-blue-600 text-white border-blue-700 shadow-xs",
+                          idleClass: "bg-muted/40 hover:bg-blue-500/10 text-muted-foreground hover:text-blue-600",
+                        },
+                        {
+                          status: "preparing",
+                          label: "Preparing",
+                          icon: Flame,
+                          activeClass: "bg-purple-600 text-white border-purple-700 shadow-xs",
+                          idleClass: "bg-muted/40 hover:bg-purple-500/10 text-muted-foreground hover:text-purple-600",
+                        },
+                        {
+                          status: "served",
+                          label: "Served",
+                          icon: Utensils,
+                          activeClass: "bg-indigo-600 text-white border-indigo-700 shadow-xs",
+                          idleClass: "bg-muted/40 hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-600",
+                        },
+                        {
+                          status: "completed",
+                          label: "Completed",
+                          icon: Check,
+                          activeClass: "bg-emerald-600 text-white border-emerald-700 shadow-xs",
+                          idleClass: "bg-muted/40 hover:bg-emerald-500/10 text-muted-foreground hover:text-emerald-600",
+                        },
+                        {
+                          status: "cancelled",
+                          label: "Cancelled",
+                          icon: Trash2,
+                          activeClass: "bg-destructive text-white border-destructive shadow-xs",
+                          idleClass: "bg-muted/40 hover:bg-destructive/10 text-muted-foreground hover:text-destructive",
+                        },
+                      ].map((btn) => {
+                        const isActive = order.status === btn.status;
+                        const Icon = btn.icon;
+                        return (
+                          <button
+                            key={btn.status}
+                            type="button"
+                            onClick={() => handleUpdateQueueStatus(order.id, btn.status)}
+                            className={cn(
+                              "px-2 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 border cursor-pointer",
+                              isActive
+                                ? btn.activeClass
+                                : cn(btn.idleClass, "border-border/60")
+                            )}
+                          >
+                            <Icon className="w-3 h-3 shrink-0" />
+                            <span className="truncate">{btn.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </Card>
               );

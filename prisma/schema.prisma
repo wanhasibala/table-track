@@ -14,27 +14,92 @@ model user {
   created_at DateTime @default(now()) @db.Timestamp(6)
 }
 
+model tenant {
+  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String         @db.VarChar
+  slug                    String         @unique @db.VarChar
+  is_active               Boolean        @default(true)
+  logo_url                String?        @db.VarChar
+  address                 String?        @db.Text
+  latitude                Float?
+  longitude               Float?
+  static_qris             String?        @db.Text
+  qris_image_url          String?        @db.VarChar
+  qris_expiry_minutes     Int            @default(15)
+  bank_name               String?        @db.VarChar
+  bank_account_number     String?        @db.VarChar
+  bank_account_name       String?        @db.VarChar
+  payment_instructions    String?        @db.Text
+  pos_pin                 String?        @db.VarChar
+  pos_pin_enabled         Boolean?       @default(false)
+  owner_whatsapp          String?        @db.VarChar
+  wa_gateway_token        String?        @db.Text
+  wa_notify_new_order     Boolean?       @default(true)
+  subscription_tier       String?        @default("free") @db.VarChar
+  subscription_status     String?        @default("active") @db.VarChar
+  created_at              DateTime       @default(now()) @db.Timestamp(6)
+
+  tables                  table_spot[]
+  orders                  order_table[]
+  payments                payment[]
+  users                   user_account[]
+
+  @@map("tenant")
+}
+
+model user_account {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id  String   @db.Uuid
+  user_id    String   @db.Uuid
+  role       String   @default("staff") @db.VarChar // enum: owner, manager, cashier, kitchen, staff
+  created_at DateTime @default(now()) @db.Timestamp(6)
+
+  tenant     tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@map("user_account")
+}
+
+model table_spot {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id   String        @db.Uuid
+  name        String        @db.VarChar
+  qr_code_url String?       @db.VarChar
+  is_active   Boolean       @default(true)
+  created_at  DateTime      @default(now()) @db.Timestamp(6)
+
+  tenant      tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  orders      order_table[]
+
+  @@map("table_spot")
+}
+
 model order_table {
-  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenant_id          String       @db.Uuid
-  table_id           String?      @db.Uuid
-  handled_by         String?      @db.Uuid
-  customer_name      String?      @db.VarChar
-  customer_phone     String?      @db.VarChar
-  type               String       @default("dine_in") @db.VarChar // enum: dine_in, takeaway, delivery
-  status             String       @default("pending") @db.VarChar // enum: pending, confirmed, preparing, served, cancelled, completed
-  total_amount       Float        @default(0)
-  notes              String?      @db.Text
-  delivery_address   String?      @db.Text
-  delivery_fee       Float        @default(0)
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id          String        @db.Uuid
+  table_id           String?       @db.Uuid
+  handled_by         String?       @db.Uuid
+  customer_name      String?       @db.VarChar
+  customer_phone     String?       @db.VarChar
+  type               String        @default("dine_in") @db.VarChar // enum: dine_in, takeaway, delivery
+  status             String        @default("pending") @db.VarChar // enum: pending, awaiting_payment, confirmed, preparing, served, completed, cancelled, expired
+  payment_status     String        @default("unpaid") @db.VarChar  // enum: unpaid, awaiting_payment, paid, expired, cancelled
+  total_amount       Float         @default(0)
+  dynamic_qris       String?       @db.Text
+  expires_at         DateTime?     @db.Timestamp(6)
+  notes              String?       @db.Text
+  delivery_address   String?       @db.Text
+  delivery_fee       Float         @default(0)
   delivery_latitude  Float?
   delivery_longitude Float?
-  created_at         DateTime     @default(now()) @db.Timestamp(6)
+  scheduled_for      DateTime?     @db.Timestamp(6)
+  created_at         DateTime      @default(now()) @db.Timestamp(6)
   
-  // Auto-incrementing order number (sequential ID)
-  order_number       Int          @default(autoincrement())
+  order_number       Int           @default(autoincrement())
 
+  tenant             tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  table              table_spot?   @relation(fields: [table_id], references: [id], onDelete: SetNull)
   items              order_item[]
+  payments           payment[]
 
   @@map("order_table")
 }
@@ -52,6 +117,25 @@ model order_item {
   order        order_table @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
   @@map("order_item")
+}
+
+model payment {
+  id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id           String      @db.Uuid
+  order_id            String      @db.Uuid
+  amount              Float
+  method              String      @default("qris") @db.VarChar // enum: qris, cash, midtrans
+  status              String      @default("pending") @db.VarChar // enum: pending, paid, failed, expired, cancelled
+  paid_at             DateTime?   @db.Timestamp(6)
+  confirmed_by        String?     @db.Uuid
+  payment_receipt_url String?     @db.VarChar
+  midtrans_id         String?     @db.VarChar
+  created_at          DateTime    @default(now()) @db.Timestamp(6)
+
+  tenant              tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  order               order_table @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@map("payment")
 }
 
 model expense {

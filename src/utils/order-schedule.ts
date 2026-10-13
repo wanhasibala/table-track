@@ -130,3 +130,84 @@ export function parseOrderSchedule(
 
   return result;
 }
+
+/**
+ * Returns the effective operational/accounting date for an order.
+ * If the order is scheduled (via scheduled_for column or [SCHEDULED: ...] notes),
+ * the scheduled date is returned.
+ * Otherwise, falls back to created_at (or new Date()).
+ */
+export function getOrderEffectiveDate(
+  order: {
+    scheduled_for?: string | Date | null;
+    notes?: string | null;
+    created_at?: string | Date | null;
+  } | null | undefined
+): Date {
+  if (!order) return new Date();
+  const schedule = parseOrderSchedule(order as any);
+  if (schedule.isScheduled && schedule.scheduledDate) {
+    return schedule.scheduledDate;
+  }
+  if (order.created_at) {
+    const d = new Date(order.created_at);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return new Date();
+}
+
+/**
+ * Checks if an order's effective date falls within a given date range [startDate, endDate].
+ */
+export function isOrderInDateRange(
+  order: {
+    scheduled_for?: string | Date | null;
+    notes?: string | null;
+    created_at?: string | Date | null;
+  } | null | undefined,
+  startDate?: Date | string | null,
+  endDate?: Date | string | null
+): boolean {
+  if (!order) return false;
+  const effectiveDate = getOrderEffectiveDate(order);
+  const time = effectiveDate.getTime();
+
+  if (startDate) {
+    const start = new Date(startDate).getTime();
+    if (!isNaN(start) && time < start) return false;
+  }
+  if (endDate) {
+    const end = new Date(endDate).getTime();
+    if (!isNaN(end) && time > end) return false;
+  }
+  return true;
+}
+
+/**
+ * Checks if an order should be active / counted for "Today":
+ * - If scheduled: checks if the scheduled date is today (schedule.isToday).
+ * - If regular / immediate order: checks if created_at is today.
+ */
+export function isOrderEffectiveToday(
+  order: {
+    scheduled_for?: string | Date | null;
+    notes?: string | null;
+    created_at?: string | Date | null;
+  } | null | undefined
+): boolean {
+  if (!order) return false;
+  const schedule = parseOrderSchedule(order as any);
+  if (schedule.isScheduled) {
+    return schedule.isToday;
+  }
+  if (order.created_at) {
+    const d = new Date(order.created_at);
+    const now = new Date();
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  }
+  return true;
+}

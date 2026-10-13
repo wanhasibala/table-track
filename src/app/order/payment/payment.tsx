@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { parseOrderSchedule } from "@/utils/order-schedule";
-
+import { toDynamicQris, generateQrisQrCodeDataUrl, validateQris } from "@/lib/qris";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("id-ID", {
@@ -31,52 +31,8 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-// CRC16 Checksum helper for EMVCo/QRIS
-function crc16(data: string): string {
-  let crc = 0xFFFF;
-  for (let i = 0; i < data.length; i++) {
-    let x = ((crc >> 8) ^ data.charCodeAt(i)) & 0xFF;
-    x ^= x >> 4;
-    crc = ((crc << 8) ^ (x << 12) ^ (x << 5) ^ x) & 0xFFFF;
-  }
-  return crc.toString(16).toUpperCase().padStart(4, "0");
-}
-
-// Generate Dynamic QRIS payload by injecting transaction amount
-export function generateDynamicQRIS(staticQris: string, amount: number): string {
-  let base = staticQris.trim();
-  
-  // Find index of tag 6304 (CRC) which must remain at the very end
-  const crcIndex = base.lastIndexOf("6304");
-  if (crcIndex !== -1) {
-    base = base.substring(0, crcIndex);
-  }
-
-  // 1. Change Point of Initiation Method from Static (11) to Dynamic (12)
-  if (base.includes("010211")) {
-    base = base.replace("010211", "010212");
-  } else if (!base.includes("010212")) {
-    base = base.replace("000201", "000201010212");
-  }
-
-  // 2. Remove existing amount tag (54) if present
-  base = base.replace(/54\d{2}\d+/, "");
-
-  // 3. Add transaction amount (tag 54)
-  const amountStr = Math.round(amount).toString();
-  const amountLen = amountStr.length.toString().padStart(2, "0");
-  const amountTag = `54${amountLen}${amountStr}`;
-  base = base + amountTag;
-
-  // 4. Add CRC tag header
-  base = base + "6304";
-
-  // 5. Compute and append new CRC16 checksum
-  const checksum = crc16(base);
-  return base + checksum;
-}
-
-const DEFAULT_STATIC_QRIS = "00020101021126590016ID1020021400030103030005204000053033605802ID5918Fruits Shop Jakarta6007Jakarta61051212362070703A016304";
+const DEFAULT_STATIC_QRIS =
+  "00020101021126590016ID1020021400030103030005204000053033605802ID5918Fruits Shop Jakarta6007Jakarta61051212362070703A016304";
 
 export default function PaymentPage() {
   const router = useRouter();
@@ -108,10 +64,32 @@ export default function PaymentPage() {
 
   // QRIS simulated states
   const [countdown, setCountdown] = useState(300); // 5 minutes countdown
-  
-  const qrisPayloadBase = tenant?.qris_payload || DEFAULT_STATIC_QRIS;
-  const dynamicQrisPayload = order ? generateDynamicQRIS(qrisPayloadBase, order.total_amount) : "";
-  
+  const [dynamicQrImage, setDynamicQrImage] = useState<string | null>(null);
+  const [dynamicPayload, setDynamicPayload] = useState<string>("");
+
+  const staticQris =
+    tenant?.static_qris || tenant?.qris_payload || DEFAULT_STATIC_QRIS;
+
+  useEffect(() => {
+    if (!order || !order.total_amount) return;
+
+    try {
+      if (staticQris) {
+        const dyn = toDynamicQris(staticQris, order.total_amount);
+        setDynamicPayload(dyn);
+        generateQrisQrCodeDataUrl(dyn).then((url) => {
+          setDynamicQrImage(url);
+        });
+      }
+    } catch (err) {
+      console.error("Failed to generate dynamic QRIS image:", err);
+      // Fallback to static QR image if available
+      if (tenant?.qris_image_url) {
+        setDynamicQrImage(tenant.qris_image_url);
+      }
+    }
+  }, [order?.total_amount, staticQris, tenant?.qris_image_url]);
+
   const slug = order?.tenant?.slug || "";
   const isSubdomain =
     typeof window !== "undefined" &&
@@ -557,26 +535,36 @@ export default function PaymentPage() {
                     </p>
                   </div>
 
-                  {/* Merchant uploaded QRIS image */}
+                  {/* Dynamic or Merchant QRIS image */}
                   <div className="flex flex-col items-center gap-3 animate-in zoom-in-95 duration-200 w-full">
-                    <div className="relative p-3 bg-white border border-slate-200 dark:border-slate-700 rounded-2xl shadow-md max-w-[240px] w-full flex items-center justify-center">
+                    <div className="relative p-4 bg-white border border-slate-200 dark:border-slate-700 rounded-2xl shadow-md max-w-[260px] w-full flex flex-col items-center justify-center">
+                      <div className="w-full text-center pb-2 border-b border-slate-100 mb-2">
+                        <p className="font-extrabold text-xs text-slate-800 tracking-wide uppercase">
+                          {tenant?.name || "QRIS Payment"}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-medium">NMID: ID1020021400030</p>
+                      </div>
                       <img 
-                        src={tenant.qris_image_url} 
-                        alt={`${tenant.name || "Merchant"} QRIS Code`}
-                        className="w-full h-auto max-h-[260px] object-contain rounded-lg"
+                        src={dynamicQrImage || tenant.qris_image_url} 
+                        alt={`${tenant?.name || "Merchant"} QRIS Code`}
+                        className="w-full h-auto max-h-[240px] object-contain rounded-lg"
                       />
+                      <div className="w-full text-center pt-2 mt-2 border-t border-slate-100">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Amount</span>
+                        <p className="text-sm font-black text-slate-900">{formatCurrency(order?.total_amount || 0)}</p>
+                      </div>
                     </div>
 
                     {/* Download / Open QRIS button */}
                     <a
-                      href={tenant.qris_image_url}
+                      href={dynamicQrImage || tenant.qris_image_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      download="qris-code.png"
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline bg-primary/10 px-3 py-1.5 rounded-lg transition-colors"
+                      download={`qris-${order?.order_number || "pay"}.png`}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline bg-primary/10 px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
                     >
                       <Download className="h-3.5 w-3.5" />
-                      <span>Save / Open QRIS Image</span>
+                      <span>Save / Download QR Code</span>
                     </a>
                   </div>
 

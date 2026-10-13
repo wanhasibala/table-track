@@ -25,13 +25,18 @@ import {
   RefreshCw,
   Info,
   Sparkles,
-  Smartphone
+  Smartphone,
+  Clock,
+  MessageSquare,
+  Send,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFileUpload } from "@/hooks/use-file-upload";
+import { decodeQrisFromImageData, validateQris } from "@/lib/qris";
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<"profile" | "payments" | "security">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "payments" | "notifications" | "security">("profile");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tenant, setTenant] = useState<any>(null);
@@ -48,7 +53,15 @@ export default function SettingsPage() {
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [bankAccountName, setBankAccountName] = useState("");
   const [qrisImageUrl, setQrisImageUrl] = useState("");
+  const [staticQris, setStaticQris] = useState("");
+  const [qrisExpiryMinutes, setQrisExpiryMinutes] = useState(15);
   const [paymentInstructions, setPaymentInstructions] = useState("");
+
+  // WhatsApp Notification Settings
+  const [ownerWhatsapp, setOwnerWhatsapp] = useState("");
+  const [waGatewayToken, setWaGatewayToken] = useState("");
+  const [waNotifyNewOrder, setWaNotifyNewOrder] = useState(true);
+  const [testingWa, setTestingWa] = useState(false);
 
   // Security & POS PIN State
   const [posPin, setPosPin] = useState("1234");
@@ -60,12 +73,12 @@ export default function SettingsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const { uploadFile } = useFileUpload();
 
-  // Check URL query param for default tab (e.g. /d/settings?tab=security)
+  // Check URL query param for default tab (e.g. /d/settings?tab=notifications)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam === "security" || tabParam === "payments" || tabParam === "profile") {
+      if (tabParam === "security" || tabParam === "payments" || tabParam === "profile" || tabParam === "notifications") {
         setActiveTab(tabParam as any);
       }
     }
@@ -86,17 +99,52 @@ export default function SettingsPage() {
     }
 
     setUploadingQris(true);
-    const toastId = toast.loading("Uploading QRIS image to storage...");
+    const toastId = toast.loading("Membaca & Mengunggah gambar QRIS...");
+
+    // Try client-side QR code decoding
+    try {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            const imgData = ctx.getImageData(0, 0, img.width, img.height);
+            const decoded = decodeQrisFromImageData(imgData.data, img.width, img.height);
+            if (decoded) {
+              const validation = validateQris(decoded);
+              if (validation.valid) {
+                setStaticQris(decoded);
+                toast.success("✅ String QRIS otomatis terbaca & valid EMVCo!", { id: toastId });
+              } else {
+                setStaticQris(decoded);
+                toast.warning(`QRIS terbaca namun ada peringatan: ${validation.error}`, { id: toastId });
+              }
+            } else {
+              toast.info("Gambar QRIS diunggah. Jika QR sulit terbaca otomatis, Anda juga bisa menyalin teks QRIS secara manual.", { id: toastId });
+            }
+          }
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    } catch (e) {
+      console.warn("QR auto-decode error:", e);
+    }
+
     try {
       const url = await uploadFile(file, {
         bucket: "assets",
         folder: "qris",
       });
       setQrisImageUrl(url);
-      toast.success("QRIS image uploaded successfully!", { id: toastId });
     } catch (err: any) {
       console.error("QRIS upload error:", err);
-      toast.error(err.message || "Failed to upload QRIS image. Ensure storage bucket exists.", { id: toastId });
+      toast.error(err.message || "Failed to upload QRIS image.", { id: toastId });
     } finally {
       setUploadingQris(false);
       e.target.value = "";
@@ -181,7 +229,14 @@ export default function SettingsPage() {
         setBankAccountNumber(tenantData.bank_account_number || "");
         setBankAccountName(tenantData.bank_account_name || "");
         setQrisImageUrl(tenantData.qris_image_url || "");
+        setStaticQris(tenantData.static_qris || "");
+        setQrisExpiryMinutes(tenantData.qris_expiry_minutes || 15);
         setPaymentInstructions(tenantData.payment_instructions || "");
+
+        // Populate WhatsApp Notification settings
+        setOwnerWhatsapp(tenantData.owner_whatsapp || "");
+        setWaGatewayToken(tenantData.wa_gateway_token || "");
+        setWaNotifyNewOrder(tenantData.wa_notify_new_order !== false);
 
         // Populate Security & PIN form fields (with local storage fallback)
         const localPin = typeof window !== "undefined" && tenantData.slug 
@@ -209,6 +264,35 @@ export default function SettingsPage() {
 
     fetchTenantData();
   }, []);
+
+  const handleTestWhatsApp = async () => {
+    if (!ownerWhatsapp.trim()) {
+      toast.error("Silakan masukkan nomor WhatsApp Owner terlebih dahulu.");
+      return;
+    }
+    setTestingWa(true);
+    const toastId = toast.loading("Mengirim pesan uji coba WhatsApp...");
+    try {
+      const res = await fetch("/api/notifications/whatsapp/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetPhone: ownerWhatsapp,
+          token: waGatewayToken.trim() || undefined,
+          tenantName: name || tenant?.name,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Gagal mengirim pesan uji coba WhatsApp");
+      }
+      toast.success(data.message || "Pesan uji coba WhatsApp berhasil dikirim!", { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengirim pesan uji coba", { id: toastId });
+    } finally {
+      setTestingWa(false);
+    }
+  };
 
   const handleDetectLocation = () => {
     if (!navigator.geolocation) {
@@ -283,7 +367,12 @@ export default function SettingsPage() {
         bank_account_number: bankAccountNumber.trim() || null,
         bank_account_name: bankAccountName.trim() || null,
         qris_image_url: qrisImageUrl.trim() || null,
+        static_qris: staticQris.trim() || null,
+        qris_expiry_minutes: Number(qrisExpiryMinutes) || 15,
         payment_instructions: paymentInstructions.trim() || null,
+        owner_whatsapp: ownerWhatsapp.trim() || null,
+        wa_gateway_token: waGatewayToken.trim() || null,
+        wa_notify_new_order: waNotifyNewOrder,
         pos_pin: cleanPin || "1234",
         pos_pin_enabled: posPinEnabled,
       };
@@ -337,12 +426,12 @@ export default function SettingsPage() {
       <div>
         <h3 className="text-xl font-bold text-foreground">Pengaturan Restoran</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Kelola profil bisnis, metode pembayaran pelanggan, serta PIN keamanan kasir POS.
+          Kelola profil bisnis, metode pembayaran pelanggan, notifikasi WhatsApp, serta PIN keamanan kasir POS.
         </p>
       </div>
 
       {/* Tabs list */}
-      <div className="flex border-b border-border gap-1">
+      <div className="flex flex-wrap border-b border-border gap-1">
         <button
           type="button"
           onClick={() => setActiveTab("profile")}
@@ -367,7 +456,30 @@ export default function SettingsPage() {
           )}
         >
           <CreditCard className="h-4 w-4" />
-          <span>Metode Pembayaran</span>
+          <span>Pembayaran & QRIS</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("notifications")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all",
+            activeTab === "notifications"
+              ? "border-orange-500 text-orange-500"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <MessageSquare className="h-4 w-4" />
+          <div className="flex items-center gap-1.5">
+            <span>Notifikasi WhatsApp</span>
+            <span className={cn(
+              "text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold",
+              waNotifyNewOrder && ownerWhatsapp
+                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" 
+                : "bg-muted text-muted-foreground"
+            )}>
+              {waNotifyNewOrder && ownerWhatsapp ? "Aktif" : "Off"}
+            </span>
+          </div>
         </button>
         <button
           type="button"
@@ -617,20 +729,23 @@ export default function SettingsPage() {
             </div>
 
             {/* QRIS Code Image Upload */}
-            <div className="space-y-2 p-3.5 bg-muted/20 border border-border/40 rounded-lg">
+            <div className="space-y-4 p-4 bg-muted/20 border border-border/40 rounded-xl">
               <div className="flex items-center justify-between">
                 <div>
                   <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <QrCode className="h-4 w-4 text-orange-500" /> Gambar QRIS Statis
+                    <QrCode className="h-4 w-4 text-orange-500" /> QRIS Merchant (Dinamis & Statis)
                   </label>
                   <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Upload gambar barcode QRIS restoran Anda agar pelanggan dapat membayar langsung melalui scan e-wallet / m-banking.
+                    Upload gambar barcode atau masukkan teks QRIS statis (`000201...`). Sistem akan otomatis mengonversinya menjadi QRIS Dinamis dengan nominal terkunci saat pelanggan memesan.
                   </p>
                 </div>
                 {qrisImageUrl && (
                   <button
                     type="button"
-                    onClick={() => setQrisImageUrl("")}
+                    onClick={() => {
+                      setQrisImageUrl("");
+                      setStaticQris("");
+                    }}
                     className="text-[11px] font-semibold text-destructive hover:underline flex items-center gap-1"
                   >
                     <X className="h-3 w-3" /> Hapus
@@ -650,7 +765,7 @@ export default function SettingsPage() {
                   <div className="space-y-2.5 flex-1 min-w-0 w-full">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
                       <Check className="h-4 w-4" />
-                      <span>QRIS Code Aktif</span>
+                      <span>Gambar QRIS Tersimpan</span>
                     </div>
                     <input
                       type="url"
@@ -662,7 +777,7 @@ export default function SettingsPage() {
                     <div>
                       <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground cursor-pointer transition-colors">
                         <Upload className="h-3.5 w-3.5" />
-                        <span>{uploadingQris ? "Mengunggah..." : "Ganti Gambar QRIS"}</span>
+                        <span>{uploadingQris ? "Mengunggah & Mendeteksi..." : "Ganti Gambar QRIS"}</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -692,7 +807,7 @@ export default function SettingsPage() {
                     <div className="flex flex-col items-center gap-2 py-2">
                       <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
                       <span className="text-xs font-semibold text-foreground">
-                        Mengunggah Gambar QRIS...
+                        Membaca QR & Mengunggah...
                       </span>
                     </div>
                   ) : (
@@ -704,12 +819,65 @@ export default function SettingsPage() {
                         Klik untuk upload gambar QRIS
                       </span>
                       <span className="text-[11px] text-muted-foreground">
-                        Format PNG, JPG, atau WEBP maks 5MB
+                        Sistem otomatis mengekstrak string `000201...` dari barcode gambar
                       </span>
                     </div>
                   )}
                 </label>
               )}
+
+              {/* Static QRIS Raw String Input */}
+              <div className="space-y-1.5 pt-2 border-t border-border/40">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <span>String Teks QRIS Statis</span>
+                    <span className="text-[10px] text-muted-foreground">(EMVCo Payload)</span>
+                  </label>
+                  {staticQris && (
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-md",
+                        validateQris(staticQris).valid
+                          ? "bg-emerald-500/10 text-emerald-600"
+                          : "bg-amber-500/10 text-amber-600"
+                      )}
+                    >
+                      {validateQris(staticQris).valid ? "✓ EMVCo Valid" : "⚠️ Format / CRC Tidak Cocok"}
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  rows={2}
+                  value={staticQris}
+                  onChange={(e) => setStaticQris(e.target.value)}
+                  placeholder="00020101021126..."
+                  className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-orange-500/20 resize-none break-all"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Jika upload gambar gagal mendeteksi kode, salin teks mentah hasil scan QRIS Anda dan tempel di sini.
+                </p>
+              </div>
+
+              {/* Dynamic QRIS Expiration Setting */}
+              <div className="space-y-1.5 pt-2 border-t border-border/40">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-orange-500" />
+                  <span>Durasi Masa Berlaku QRIS Dinamis (Menit)</span>
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={3}
+                    max={120}
+                    value={qrisExpiryMinutes}
+                    onChange={(e) => setQrisExpiryMinutes(Math.max(1, Number(e.target.value)))}
+                    className="w-32 px-3 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    Menit (Default: 15 menit). Pesanan yang tidak dibayar dalam durasi ini akan kedaluwarsa otomatis.
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Payment Instructions */}
@@ -719,14 +887,187 @@ export default function SettingsPage() {
                 rows={3}
                 value={paymentInstructions}
                 onChange={(e) => setPaymentInstructions(e.target.value)}
-                placeholder="Contoh: Silakan transfer sesuai nominal total dan upload bukti transfer Anda untuk proses konfirmasi otomatis."
+                placeholder="Contoh: Silakan scan QRIS atau transfer sesuai nominal total dan konfirmasi pembayaran Anda di kasir."
                 className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-orange-500/20 resize-none"
               />
             </div>
           </div>
         )}
 
-        {/* TAB 3: KEAMANAN & PIN POS KASIR */}
+        {/* TAB 3: NOTIFIKASI WHATSAPP */}
+        {activeTab === "notifications" && (
+          <div className="space-y-5 animate-fade-in">
+            {/* Header / Info Banner */}
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-foreground">
+                    Notifikasi WhatsApp Otomatis (Fonnte / Multi-Provider)
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
+                    Kirim pemberitahuan instan ke nomor WhatsApp Owner setiap kali pesanan baru dibuat oleh pelanggan di meja.
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={cn(
+                  "px-3 py-1 rounded-full text-xs font-mono font-bold flex items-center gap-1.5",
+                  waNotifyNewOrder && ownerWhatsapp 
+                    ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30" 
+                    : "bg-muted text-muted-foreground border border-border"
+                )}>
+                  {waNotifyNewOrder && ownerWhatsapp ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Notifikasi Aktif</span>
+                    </>
+                  ) : (
+                    <>
+                      <Info className="w-3.5 h-3.5" />
+                      <span>Belum Aktif</span>
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {/* Toggle Switch */}
+            <div className="flex items-center justify-between p-4 bg-muted/20 border border-border/40 rounded-xl">
+              <div>
+                <span className="text-xs font-bold text-foreground block">
+                  Kirim Notifikasi saat Pesanan Baru Masuk
+                </span>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Setiap ada pelanggan yang checkout pesanan dari meja, notifikasi WhatsApp akan langsung dikirimkan.
+                </p>
+              </div>
+
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={waNotifyNewOrder}
+                  onChange={(e) => setWaNotifyNewOrder(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+              </label>
+            </div>
+
+            {/* Form Inputs & Settings */}
+            <div className="space-y-4 p-4 border border-border/60 rounded-xl bg-card">
+              {/* WhatsApp Phone Number */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Nomor WhatsApp Owner / Pengelola Toko</span>
+                  <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={ownerWhatsapp}
+                  onChange={(e) => setOwnerWhatsapp(e.target.value)}
+                  placeholder="Contoh: 081234567890 atau 6281234567890"
+                  className="w-full px-3 py-2 text-sm font-mono rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Format dapat diawali <code>08...</code>, <code>+628...</code>, atau <code>628...</code>. Sistem akan otomatis memformat ke standar internasional.
+                </p>
+              </div>
+
+              {/* Fonnte Gateway Token */}
+              <div className="space-y-1.5 pt-3 border-t border-border/40">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Token WhatsApp Gateway / Fonnte (Opsional)</span>
+                  </label>
+                  <a
+                    href="https://fonnte.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-emerald-600 hover:underline flex items-center gap-1"
+                  >
+                    <span>Daftar Fonnte Gratis</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <input
+                  type="text"
+                  value={waGatewayToken}
+                  onChange={(e) => setWaGatewayToken(e.target.value)}
+                  placeholder="Masukkan Token Fonnte (Kosongkan jika memakai token server default)"
+                  className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Gunakan token Anda sendiri dari dashboard Fonnte untuk menghubungkan nomor bot WhatsApp toko Anda secara mandiri.
+                </p>
+              </div>
+
+              {/* Test WhatsApp Button */}
+              <div className="pt-3 border-t border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-foreground block">
+                    Uji Coba Pengiriman Pesan
+                  </span>
+                  <p className="text-[11px] text-muted-foreground">
+                    Kirim pesan tes ke nomor di atas untuk memastikan integrasi berjalan lancar.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestWhatsApp}
+                  disabled={testingWa || !ownerWhatsapp.trim()}
+                  className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  {testingWa ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Mengirim Tes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Uji Coba Kirim WA</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Message Preview Mockup */}
+            <div className="space-y-2 p-4 rounded-xl bg-muted/20 border border-border/40">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Pratinjau Pesan yang Akan Diterima:</span>
+              </div>
+              <div className="p-3.5 rounded-lg bg-[#d9fdd3] dark:bg-[#005c4b]/30 text-gray-800 dark:text-gray-200 border border-emerald-500/20 font-sans text-xs space-y-1.5 shadow-xs">
+                <div className="font-bold text-emerald-800 dark:text-emerald-300">
+                  🔔 *PESANAN BARU MASUK!* 🔔
+                </div>
+                <div className="text-[11px] space-y-0.5 leading-relaxed">
+                  <p>📍 <strong>Resto:</strong> {name || "TableTrack Resto"}</p>
+                  <p>🏷️ <strong>Meja:</strong> Meja 02</p>
+                  <p>👤 <strong>Pelanggan:</strong> Rian</p>
+                  <p>💳 <strong>Pembayaran:</strong> QRIS</p>
+                  <p className="pt-1">📦 <strong>Daftar Item:</strong></p>
+                  <p className="pl-3">· 2x Nasi Goreng Spesial - Rp 50.000</p>
+                  <p className="pl-3">· 2x Es Teh Manis - Rp 14.000</p>
+                  <p className="pt-1">💰 <strong>Total Tagihan:</strong> Rp 64.000</p>
+                  <p className="pt-1 text-[10px] text-muted-foreground italic">
+                    Segera proses pesanan ini melalui dashboard kasir POS!
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: KEAMANAN & PIN POS KASIR */}
         {activeTab === "security" && (
           <div className="space-y-5 animate-fade-in">
             {/* Header Description */}

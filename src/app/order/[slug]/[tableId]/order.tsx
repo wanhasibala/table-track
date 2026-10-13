@@ -611,6 +611,13 @@ export default function OrderMenuPage() {
 
       if (itemsError) throw itemsError;
 
+      // Fire WhatsApp notification to owner asynchronously (non-blocking)
+      fetch("/api/notifications/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      }).catch((err) => console.warn("WA notification dispatch error:", err));
+
       toast.success("Order placed successfully!");
       setCart([]);
       setIsCartOpen(false);

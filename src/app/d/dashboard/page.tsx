@@ -13,8 +13,10 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  CalendarClock,
 } from "lucide-react";
+import { parseOrderSchedule } from "@/utils/order-schedule";
 import {
   AreaChart,
   Area,
@@ -94,7 +96,7 @@ export default function DashboardPage() {
     // Total Revenue (only count completed or paid orders)
     const revenue = liveOrders.reduce((sum, order) => {
       const isPaid = order.payment_status === "paid" || order.payment_status === "settlement";
-      return isPaid ? sum + Number(order.total_price || 0) : sum;
+      return isPaid ? sum + Number(order.total_amount || order.total_price || 0) : sum;
     }, 0);
 
     // Total orders count
@@ -299,11 +301,25 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {liveOrders.slice(0, 5).map((order) => (
-                    <tr key={order.id} className="hover:bg-muted/10 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-medium text-xs">#{order.id.slice(0, 8)}</td>
-                      <td className="py-3.5 px-4">{order.customer_name || "Guest Diner"}</td>
-                      <td className="py-3.5 px-4 font-bold">{formatCurrency(Number(order.total_price || 0))}</td>
+                  {liveOrders.slice(0, 5).map((order) => {
+                    const schedule = parseOrderSchedule(order);
+                    return (
+                      <tr key={order.id} className="hover:bg-muted/10 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-medium text-xs">
+                          #{order.order_number || order.id.slice(0, 8)}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium">{order.customer_name || "Guest Diner"}</span>
+                            {schedule.isScheduled && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.2 rounded w-fit">
+                                <CalendarClock className="size-2.5" />
+                                {schedule.formattedSchedule}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-bold">{formatCurrency(Number(order.total_amount || order.total_price || 0))}</td>
                       <td className="py-3.5 px-4">
                         <span className={cn(
                           "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border",
@@ -330,7 +346,8 @@ export default function DashboardPage() {
                         </span>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

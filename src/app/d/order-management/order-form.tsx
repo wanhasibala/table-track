@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, ShoppingBag, Printer, Share2, Check, Copy, ExternalLink, Calendar, CalendarDays } from "lucide-react";
+import { Plus, Trash2, ShoppingBag, Printer, Share2, Check, Copy, ExternalLink, Calendar, CalendarDays, Clock, CheckCircle2, Flame, Utensils } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -329,6 +330,12 @@ export const OrderForm = ({
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
         status: status as any,
+        payment_status:
+          ["confirmed", "preparing", "served", "completed"].includes(status)
+            ? "paid"
+            : status === "cancelled"
+              ? "cancelled"
+              : "unpaid",
         handled_by: handledBy || null,
         notes: finalNotes,
         total_amount: grandTotal,
@@ -718,22 +725,79 @@ export const OrderForm = ({
               />
             </div>
 
-            {/* Status */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground">Order Status</label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="w-full bg-background">
-                  <SelectValue placeholder="Select Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="preparing">Preparing</SelectItem>
-                  <SelectItem value="served">Served</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Status Selection Buttons */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground">Order Status</label>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-muted border border-border/60">
+                  Aktif: {status}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                {[
+                  {
+                    status: "pending",
+                    label: "Pending",
+                    icon: Clock,
+                    activeClass: "bg-yellow-500 text-white border-yellow-600 shadow-xs",
+                    idleClass: "bg-muted/40 hover:bg-yellow-500/10 text-muted-foreground hover:text-yellow-600",
+                  },
+                  {
+                    status: "confirmed",
+                    label: "Confirmed",
+                    icon: CheckCircle2,
+                    activeClass: "bg-blue-600 text-white border-blue-700 shadow-xs",
+                    idleClass: "bg-muted/40 hover:bg-blue-500/10 text-muted-foreground hover:text-blue-600",
+                  },
+                  {
+                    status: "preparing",
+                    label: "Preparing",
+                    icon: Flame,
+                    activeClass: "bg-purple-600 text-white border-purple-700 shadow-xs",
+                    idleClass: "bg-muted/40 hover:bg-purple-500/10 text-muted-foreground hover:text-purple-600",
+                  },
+                  {
+                    status: "served",
+                    label: "Served",
+                    icon: Utensils,
+                    activeClass: "bg-indigo-600 text-white border-indigo-700 shadow-xs",
+                    idleClass: "bg-muted/40 hover:bg-indigo-500/10 text-muted-foreground hover:text-indigo-600",
+                  },
+                  {
+                    status: "completed",
+                    label: "Completed",
+                    icon: Check,
+                    activeClass: "bg-emerald-600 text-white border-emerald-700 shadow-xs",
+                    idleClass: "bg-muted/40 hover:bg-emerald-500/10 text-muted-foreground hover:text-emerald-600",
+                  },
+                  {
+                    status: "cancelled",
+                    label: "Cancelled",
+                    icon: Trash2,
+                    activeClass: "bg-destructive text-white border-destructive shadow-xs",
+                    idleClass: "bg-muted/40 hover:bg-destructive/10 text-muted-foreground hover:text-destructive",
+                  },
+                ].map((btn) => {
+                  const isActive = status === btn.status;
+                  const Icon = btn.icon;
+                  return (
+                    <button
+                      key={btn.status}
+                      type="button"
+                      onClick={() => setStatus(btn.status)}
+                      className={cn(
+                        "px-2.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border cursor-pointer",
+                        isActive
+                          ? btn.activeClass
+                          : cn(btn.idleClass, "border-border/60")
+                      )}
+                    >
+                      <Icon className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{btn.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Schedule Order Timing */}
