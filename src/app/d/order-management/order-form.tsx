@@ -330,12 +330,6 @@ export const OrderForm = ({
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
         status: status as any,
-        payment_status:
-          ["confirmed", "preparing", "served", "completed"].includes(status)
-            ? "paid"
-            : status === "cancelled"
-              ? "cancelled"
-              : "unpaid",
         handled_by: handledBy || null,
         notes: finalNotes,
         total_amount: grandTotal,
